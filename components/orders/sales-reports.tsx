@@ -7,7 +7,7 @@ import {
   Search, FileText, Calendar, Download, Printer, RotateCcw,
   ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
   TrendingUp, Package, Clock, CheckCircle2, XCircle, Award,
-  ChevronsLeft, ChevronsRight, Filter, CreditCard, Banknote, Landmark, Truck
+  ChevronsLeft, ChevronsRight, Filter, Truck
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -59,7 +59,7 @@ async function exportSalesPDF(
 
   doc.setFontSize(11)
   doc.setTextColor(30, 30, 30)
-  doc.text(`Total Revenue: ${formatCurrency(summary.totalRevenue)}`, 14, 42)
+doc.text(`Total Revenue: PHP ${summary.totalRevenue.toFixed(2)}`, 14, 42)
   doc.text(`Total Orders: ${summary.totalOrders}`, 100, 42)
   doc.text(`Completed Orders: ${summary.completed}`, 180, 42)
 
@@ -68,7 +68,7 @@ async function exportSalesPDF(
     o.customerName || "—",
     computeProductSummary(o),
     `${computeTotalKg(o).toFixed(1)} KG`,
-    formatCurrency(computeTotalAmount(o)),
+  `PHP ${computeTotalAmount(o).toFixed(2)}`,
     o.status.toUpperCase(),
     formatDateDisplay(o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.createdAt))
   ])
@@ -114,39 +114,6 @@ function StatusBadge({ status }: { status: string }) {
     <div className={classes}>
       {icon}
       {status.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}
-    </div>
-  )
-}
-
-// ─── Payment Badge Component ─────────────────────────────────────────────────
-function PaymentBadge({ method }: { method?: string }) {
-  const m = (method || "cash").toLowerCase()
-  let classes = "px-2 py-0.5 text-[10px] font-bold rounded-md flex items-center gap-1 w-fit "
-  let icon = null
-  let label = method || "Cash"
-
-  if (m.includes("gcash")) {
-    classes += "bg-[#007DFE]/10 text-[#007DFE] border border-[#007DFE]/20"
-    icon = <CreditCard className="h-2.5 w-2.5" />
-    label = "GCash"
-  } else if (m.includes("bank")) {
-    classes += "bg-indigo-50 text-indigo-700 border border-indigo-200"
-    icon = <Landmark className="h-2.5 w-2.5" />
-    label = "Bank Transfer"
-  } else if (m.includes("cod")) {
-    classes += "bg-orange-50 text-orange-700 border border-orange-200"
-    icon = <Truck className="h-2.5 w-2.5" />
-    label = "COD"
-  } else {
-    classes += "bg-emerald-50 text-emerald-700 border border-emerald-200"
-    icon = <Banknote className="h-2.5 w-2.5" />
-    label = "Cash"
-  }
-
-  return (
-    <div className={classes}>
-      {icon}
-      {label}
     </div>
   )
 }
@@ -227,8 +194,8 @@ export function SalesReports() {
       {/* ── KPI Cards ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <KPICard
-          icon={<Banknote className="h-5 w-5 text-indigo-600" />}
-          label="Total Revenue"
+      icon={<Package className="h-5 w-5 text-indigo-600" />}
+      label="Total Revenue"
           value={formatCurrency(summary.totalRevenue)}
           color="indigo"
         />
@@ -462,13 +429,12 @@ export function SalesReports() {
 
           {/* Status Chips */}
           <div className="flex items-center gap-2 flex-wrap pt-2">
-            {(["all", "pending", "processing", "on_delivery", "completed", "cancelled"] as const).map((status) => {
+            {(["all", "pending", "on_delivery", "completed", "cancelled"] as const).map((status) => {
               const isActive = statusFilter === status
               let chipClass = "px-3.5 py-1.5 text-[11px] font-bold rounded-full transition-all cursor-pointer border "
               if (isActive) {
                 if (status === 'all') chipClass += "bg-gray-800 text-white border-gray-800 dark:bg-gray-200 dark:text-gray-900"
                 else if (status === 'pending') chipClass += "bg-amber-500 text-white border-amber-500"
-                else if (status === 'processing') chipClass += "bg-blue-500 text-white border-blue-500"
                 else if (status === 'on_delivery') chipClass += "bg-purple-500 text-white border-purple-500"
                 else if (status === 'completed') chipClass += "bg-emerald-500 text-white border-emerald-500"
                 else if (status === 'cancelled') chipClass += "bg-red-500 text-white border-red-500"
@@ -521,7 +487,7 @@ export function SalesReports() {
                       Total Amount <SortIcon field="totalAmount" />
                     </div>
                   </th>
-                  <th className="px-5 py-4 text-center">Payment</th>
+                  
                   <th className="px-5 py-4 cursor-pointer group select-none" onClick={() => toggleSort("status")}>
                     <div className="flex items-center gap-1.5 hover:text-gray-900 transition-colors">
                       Status <SortIcon field="status" />
@@ -553,11 +519,6 @@ export function SalesReports() {
                     </td>
                     <td className="px-5 py-4 text-right font-bold text-indigo-600 dark:text-indigo-400">
                       {formatCurrency(computeTotalAmount(order))}
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="flex justify-center">
-                        <PaymentBadge method={(order as any).paymentMethod} />
-                      </div>
                     </td>
                     <td className="px-5 py-4">
                       <StatusBadge status={order.status} />

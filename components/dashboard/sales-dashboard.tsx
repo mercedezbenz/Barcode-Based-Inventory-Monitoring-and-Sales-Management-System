@@ -65,16 +65,20 @@ const SalesTrendChart = ({ type }: { type: "orders" | "pending" | "completed" })
 }
 
 // ─── Status badge component for orders ───
-const StatusBadge = ({ status }: { status: string }) => {
-  let label = status
+const SalesStatusBadge = ({ salesStatus }: { salesStatus: string }) => {
+  const normalized = (salesStatus || "pending").toLowerCase().replace(/\s+/g, "_")
+  let label = salesStatus
   let className = "inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide uppercase "
 
-  switch (status) {
+  switch (normalized) {
     case "pending":
       label = "Pending"
       className += "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800"
       break
-    case "delivered":
+    case "on_delivery":
+      label = "On Delivery"
+      className += "bg-orange-50 text-orange-700 border border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800"
+      break
     case "completed":
       label = "Completed"
       className += "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800"
@@ -84,6 +88,7 @@ const StatusBadge = ({ status }: { status: string }) => {
       className += "bg-red-50 text-red-600 border border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800"
       break
     default:
+      label = "Pending"
       className += "bg-gray-50 text-gray-600 border border-gray-200 dark:bg-gray-800 dark:text-gray-400"
   }
 
@@ -150,9 +155,12 @@ const formatTime = (date: any): string => {
 
 // ─── Helper: Format currency ───
 const formatCurrency = (amount: number): string => {
+ 
   return `₱${amount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
-
+ const normalizeSales = (salesStatus?: string) => {
+  return (salesStatus || "pending").toLowerCase().replace(/\s+/g, "_")
+}
 export function SalesDashboard() {
   const { user, firebaseError, isReadOnly } = useAuth()
   const { orders, loading } = useOrders()
@@ -172,12 +180,12 @@ export function SalesDashboard() {
   // ─── Computed: KPI Stats ───
   const stats = useMemo(() => {
     const totalOrdersToday = todayOrders.length
-    const completedOrders = orders.filter((o) => o.status === "completed" || o.status === "delivered").length
-    const cancelledOrders = orders.filter((o) => o.status === "cancelled").length
-    // Group all active statuses under "pendingOrders" for the dashboard KPIs
-    const pendingOrders = orders.length - completedOrders - cancelledOrders
+    const completedOrders = orders.filter((o) => normalizeSales(o.salesStatus) === "completed").length
+    const cancelledOrders = orders.filter((o) => normalizeSales(o.salesStatus) === "cancelled").length
+    const onDeliveryOrders = orders.filter((o) => normalizeSales(o.salesStatus) === "on_delivery").length
+    const pendingOrders = orders.filter((o) => normalizeSales(o.salesStatus) === "pending").length
 
-    return { totalOrdersToday, pendingOrders, completedOrders }
+    return { totalOrdersToday, pendingOrders, completedOrders, onDeliveryOrders }
   }, [orders, todayOrders])
 
   // ─── Computed: All orders (newest first — already sorted by hook) ───
@@ -214,7 +222,7 @@ export function SalesDashboard() {
     }
 
     // Pending orders needing attention
-    const pendingCount = orders.filter((o) => o.status === "pending").length
+    const pendingCount = orders.filter((o) => normalizeSales(o.salesStatus) === "pending").length
     if (pendingCount > 0) {
       result.push({
         icon: <div className="h-2.5 w-2.5 rounded-full bg-amber-500 shadow-sm shadow-amber-500/20" />,
@@ -225,7 +233,7 @@ export function SalesDashboard() {
     }
 
     // Completed orders today
-    const completedToday = todayOrders.filter((o) => o.status === "completed" || o.status === "delivered").length
+    const completedToday = todayOrders.filter((o) => normalizeSales(o.salesStatus) === "completed").length
     if (completedToday > 0) {
       result.push({
         icon: <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/20" />,
@@ -236,7 +244,7 @@ export function SalesDashboard() {
     }
 
     // Cancelled orders today
-    const cancelledToday = todayOrders.filter((o) => o.status === "cancelled").length
+    const cancelledToday = todayOrders.filter((o) => normalizeSales(o.salesStatus) === "cancelled").length
     if (cancelledToday > 0) {
       result.push({
         icon: <div className="h-2.5 w-2.5 rounded-full bg-red-500 shadow-sm shadow-red-500/20" />,
@@ -424,18 +432,24 @@ export function SalesDashboard() {
 
             {/* Summary Bar */}
             {(() => {
-              const completedCount = recentOrders.filter(o => o.status === "completed" || o.status === "delivered").length
-              const cancelledCount = recentOrders.filter(o => o.status === "cancelled").length
-              // Any order that is not completed or cancelled is active/pending
-              const pendingCount = recentOrders.length - completedCount - cancelledCount
+              const completedCount = recentOrders.filter(o => normalizeSales(o.salesStatus) === "completed").length
+              const cancelledCount = recentOrders.filter(o => normalizeSales(o.salesStatus) === "cancelled").length
+              const onDeliveryCount = recentOrders.filter(o => normalizeSales(o.salesStatus) === "on_delivery").length
+              const pendingCount = recentOrders.filter(o => normalizeSales(o.salesStatus) === "pending").length
 
-              if (pendingCount > 0 || completedCount > 0 || cancelledCount > 0) {
+              if (pendingCount > 0 || completedCount > 0 || cancelledCount > 0 || onDeliveryCount > 0) {
                 return (
                   <div className="flex items-center gap-2 flex-wrap mb-4">
                     {completedCount > 0 && (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                         {completedCount} Completed
+                      </span>
+                    )}
+                    {onDeliveryCount > 0 && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-orange-50 text-orange-600 border border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800">
+                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+                        {onDeliveryCount} On Delivery
                       </span>
                     )}
                     {pendingCount > 0 && (
@@ -481,19 +495,26 @@ export function SalesDashboard() {
                   )
                 }
 
-                return (
-                  <>
-                    {items.map((order, index) => {
-                      // Determine left border color based on status
-                      let borderColor = "border-l-gray-300"
-                      if (order.status === "pending") borderColor = "border-l-amber-400"
-                      else if (order.status === "completed" || order.status === "delivered") borderColor = "border-l-emerald-400"
-                      else if (order.status === "cancelled") borderColor = "border-l-red-400"
+               return (
+  <>
+    {items.map((order, index) => {
+      // Determine left border color based on status
+      const ss = normalizeSales(order.salesStatus)
+      let borderColor = "border-l-gray-300"
 
-                      // Highlight pending/active rows
-                      const isPending = order.status !== "completed" && order.status !== "delivered" && order.status !== "cancelled"
+      if (ss === "pending") {
+        borderColor = "border-l-amber-400"
+      } else if (ss === "on_delivery") {
+        borderColor = "border-l-orange-400"
+      } else if (ss === "completed") {
+        borderColor = "border-l-emerald-400"
+      } else if (ss === "cancelled") {
+        borderColor = "border-l-red-400"
+      }
+    
+      const isPending = ss === "pending"
 
-                      return (
+return (
                         <div
                           key={`order-${order.id}-${index}`}
                           className={`grid grid-cols-[2fr_1.5fr_1fr_1fr] gap-3 py-3 items-center transition-all duration-200 hover:bg-blue-50/40 dark:hover:bg-secondary/30 hover:shadow-[0_1px_4px_rgba(0,0,0,0.04)] group border-l-[3px] ${borderColor} rounded-r-md -ml-px pl-3 ${isPending ? "bg-amber-50/20 dark:bg-amber-950/10" : ""}`}
@@ -517,7 +538,7 @@ export function SalesDashboard() {
 
                           {/* Status Badge */}
                           <div className="flex justify-center">
-                            <StatusBadge status={order.status} />
+                            <SalesStatusBadge salesStatus={order.salesStatus} />
                           </div>
 
                           {/* Time */}

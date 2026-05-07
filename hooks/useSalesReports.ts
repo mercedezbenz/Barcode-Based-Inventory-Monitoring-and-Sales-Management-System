@@ -2,9 +2,19 @@
 
 import { useState, useMemo, useCallback } from "react"
 import { useOrders, type Order, type OrderItem } from "./useOrders"
+import {
+  normalizeSalesStatus,
+  matchesSalesFilter,
+  computeSalesKPIs,
+  computeSalesStatusDistribution,
+  type SalesStatusFilterKey,
+} from "@/lib/sales-status-mapper"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-export type SalesStatusFilter = "all" | "pending" | "processing" | "on_delivery" | "completed" | "cancelled"
+export type { SalesStatusFilterKey }
+// Legacy alias — kept for backward compat with any imports that still use this name
+export type SalesStatusFilter = SalesStatusFilterKey
+
 export type ProductCategoryFilter = "all" | "chicken" | "pork" | "beef"
 export type SortField = "orderId" | "customerName" | "totalKg" | "totalAmount" | "status" | "createdAt"
 export type SortDir = "asc" | "desc"
@@ -12,7 +22,7 @@ export type SortDir = "asc" | "desc"
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
 
 // ─── Date helpers ────────────────────────────────────────────────────────────
-function parseTimestamp(ts: any): Date | null {
+export function parseTimestamp(ts: any): Date | null {
   if (!ts) return null
   if (ts instanceof Date) return ts
   if (typeof ts === "string") return new Date(ts)
@@ -45,17 +55,6 @@ function startOfMonth(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0)
 }
 
-// ─── Normalize status for grouping ──────────────────────────────────────────
-function normalizeStatus(status: string): SalesStatusFilter {
-  const s = status.toLowerCase().replace(/[\s_]+/g, "_")
-  if (s === "pending") return "pending"
-  if (["processing", "ready_for_processing", "in_production"].includes(s)) return "processing"
-  if (["on_delivery", "ready_for_delivery"].includes(s)) return "on_delivery"
-  if (["completed", "delivered"].includes(s)) return "completed"
-  if (s === "cancelled") return "cancelled"
-  return "pending"
-}
-
 // ─── Detect product category from item name ─────────────────────────────────
 function detectCategory(item: OrderItem): string {
   const name = (item.name || "").toLowerCase()
@@ -71,7 +70,7 @@ export function useSalesReports() {
 
   // ─── Filter state ───
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState<SalesStatusFilter>("all")
+  const [statusFilter, setStatusFilter] = useState<SalesStatusFilterKey>("all")
   const [categoryFilter, setCategoryFilter] = useState<ProductCategoryFilter>("all")
   const [startDate, setStartDate] = useState<Date | null>(null)
   const [endDate, setEndDate] = useState<Date | null>(null)
@@ -145,9 +144,9 @@ export function useSalesReports() {
       })
     }
 
-    // Status filter
+    // Status filter — uses centralized matchesSalesFilter
     if (statusFilter !== "all") {
-      result = result.filter((o) => normalizeStatus(o.status) === statusFilter)
+      result = result.filter((o) => matchesSalesFilter(o.status, statusFilter, (o as any).salesStatus))
     }
 
     // Category filter
@@ -187,7 +186,8 @@ export function useSalesReports() {
           cmp = computeTotalAmount(a) - computeTotalAmount(b)
           break
         case "status":
-          cmp = (a.status || "").localeCompare(b.status || "")
+          // Sort by sales display status, not raw status
+          cmp = normalizeSalesStatus(a.status).localeCompare(normalizeSalesStatus(b.status))
           break
         case "createdAt": {
           const da = parseTimestamp(a.createdAt)?.getTime() || 0
@@ -202,41 +202,31 @@ export function useSalesReports() {
     return result
   }, [orders, searchTerm, statusFilter, categoryFilter, startDate, endDate, sortField, sortDir])
 
-  // ─── KPI Summary ───
+  // ─── KPI Summary — uses centralized computeSalesKPIs ───
   const summary = useMemo(() => {
+    const kpis = computeSalesKPIs(orders)
+
     const totalRevenue = orders.reduce((sum, o) => {
-      if (normalizeStatus(o.status) === "cancelled") return sum
+      if (normalizeSalesStatus((o as any).salesStatus || o.status) === "Cancelled") return sum
       return sum + computeTotalAmount(o)
     }, 0)
-
-    const totalOrders = orders.length
-
-    const pending = orders.filter(
-      (o) => normalizeStatus(o.status) === "pending"
-    ).length
-
-    const completed = orders.filter(
-      (o) => normalizeStatus(o.status) === "completed"
-    ).length
 
     // Top selling product by KG
     const productKgMap: Record<string, number> = {}
     orders.forEach((o) => {
-      if (normalizeStatus(o.status) === "cancelled") return
+      if (normalizeSalesStatus((o as any).salesStatus || o.status) === "Cancelled") return
       ;(o.items || []).forEach((item) => {
         const name = item.name || "Unknown"
         const kg = Number(item.quantity ?? 0)
         productKgMap[name] = (productKgMap[name] || 0) + kg
       })
     })
-    const topProduct = Object.entries(productKgMap).sort(
-      (a, b) => b[1] - a[1]
-    )[0]
+    const topProduct = Object.entries(productKgMap).sort((a, b) => b[1] - a[1])[0]
 
     // Revenue this week
     const weekStart = startOfWeek(new Date())
     const revenueThisWeek = orders.reduce((sum, o) => {
-      if (normalizeStatus(o.status) === "cancelled") return sum
+      if (normalizeSalesStatus((o as any).salesStatus || o.status) === "Cancelled") return sum
       const d = parseTimestamp(o.createdAt)
       if (d && d >= weekStart) return sum + computeTotalAmount(o)
       return sum
@@ -244,9 +234,11 @@ export function useSalesReports() {
 
     return {
       totalRevenue,
-      totalOrders,
-      pending,
-      completed,
+      totalOrders: kpis.totalOrders,
+      pending: kpis.pending,
+      onDelivery: kpis.onDelivery,
+      completed: kpis.completed,
+      cancelled: kpis.cancelled,
       topProduct: topProduct ? { name: topProduct[0], kg: topProduct[1] } : null,
       revenueThisWeek,
     }
@@ -259,7 +251,7 @@ export function useSalesReports() {
     const dayRevenue = new Array(7).fill(0)
 
     orders.forEach((o) => {
-      if (normalizeStatus(o.status) === "cancelled") return
+      if (normalizeSalesStatus((o as any).salesStatus || o.status) === "Cancelled") return
       const d = parseTimestamp(o.createdAt)
       if (!d || d < weekStart) return
       const dayOfWeek = d.getDay()
@@ -273,33 +265,16 @@ export function useSalesReports() {
     }))
   }, [orders])
 
-  // ─── Order Status Distribution (for donut chart) ───
+  // ─── Order Status Distribution — uses centralized helper ───
   const statusDistribution = useMemo(() => {
-    const counts: Record<string, number> = {
-      Pending: 0,
-      Processing: 0,
-      "On Delivery": 0,
-      Completed: 0,
-      Cancelled: 0,
-    }
-    orders.forEach((o) => {
-      const ns = normalizeStatus(o.status)
-      if (ns === "pending") counts.Pending++
-      else if (ns === "processing") counts.Processing++
-      else if (ns === "on_delivery") counts["On Delivery"]++
-      else if (ns === "completed") counts.Completed++
-      else if (ns === "cancelled") counts.Cancelled++
-    })
-    return Object.entries(counts)
-      .filter(([, v]) => v > 0)
-      .map(([name, value]) => ({ name, value }))
+    return computeSalesStatusDistribution(orders)
   }, [orders])
 
   // ─── Top Selling Products by KG ───
   const topProductsData = useMemo(() => {
     const map: Record<string, number> = {}
     orders.forEach((o) => {
-      if (normalizeStatus(o.status) === "cancelled") return
+      if (normalizeSalesStatus((o as any).salesStatus || o.status) === "Cancelled") return
       ;(o.items || []).forEach((item) => {
         const name = item.name || "Unknown"
         const kg = Number(item.quantity ?? 0)
@@ -316,7 +291,7 @@ export function useSalesReports() {
   const monthlyTrendData = useMemo(() => {
     const map: Record<string, number> = {}
     orders.forEach((o) => {
-      if (normalizeStatus(o.status) === "cancelled") return
+      if (normalizeSalesStatus((o as any).salesStatus || o.status) === "Cancelled") return
       const d = parseTimestamp(o.createdAt)
       if (!d) return
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
@@ -324,7 +299,7 @@ export function useSalesReports() {
     })
     return Object.entries(map)
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .slice(-12) // Last 12 months
+      .slice(-12)
       .map(([key, value]) => {
         const [year, month] = key.split("-")
         const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -339,16 +314,14 @@ export function useSalesReports() {
   const customerAnalytics = useMemo(() => {
     const customerMap: Record<string, { totalAmount: number; orderCount: number }> = {}
     orders.forEach((o) => {
-      if (normalizeStatus(o.status) === "cancelled") return
+      if (normalizeSalesStatus((o as any).salesStatus || o.status) === "Cancelled") return
       const name = o.customerName || "Unknown"
       if (!customerMap[name]) customerMap[name] = { totalAmount: 0, orderCount: 0 }
       customerMap[name].totalAmount += computeTotalAmount(o)
       customerMap[name].orderCount++
     })
 
-    const sorted = Object.entries(customerMap).sort(
-      (a, b) => b[1].totalAmount - a[1].totalAmount
-    )
+    const sorted = Object.entries(customerMap).sort((a, b) => b[1].totalAmount - a[1].totalAmount)
 
     const topCustomer = sorted[0]
       ? { name: sorted[0][0], amount: sorted[0][1].totalAmount }
@@ -356,29 +329,24 @@ export function useSalesReports() {
 
     const highestPurchase = orders.reduce(
       (max, o) => {
-        if (normalizeStatus(o.status) === "cancelled") return max
+        if (normalizeSalesStatus((o as any).salesStatus || o.status) === "Cancelled") return max
         const amt = computeTotalAmount(o)
         return amt > max.amount ? { name: o.customerName, amount: amt } : max
       },
       { name: "", amount: 0 }
     )
 
-    const repeatCustomers = Object.values(customerMap).filter(
-      (c) => c.orderCount > 1
-    ).length
+    const repeatCustomers = Object.values(customerMap).filter((c) => c.orderCount > 1).length
 
-    // Most ordered product
     const productOrderCount: Record<string, number> = {}
     orders.forEach((o) => {
-      if (normalizeStatus(o.status) === "cancelled") return
+      if (normalizeSalesStatus((o as any).salesStatus || o.status) === "Cancelled") return
       ;(o.items || []).forEach((item) => {
         const name = item.name || "Unknown"
         productOrderCount[name] = (productOrderCount[name] || 0) + 1
       })
     })
-    const mostOrdered = Object.entries(productOrderCount).sort(
-      (a, b) => b[1] - a[1]
-    )[0]
+    const mostOrdered = Object.entries(productOrderCount).sort((a, b) => b[1] - a[1])[0]
 
     return {
       topCustomer,
@@ -428,11 +396,12 @@ export function useSalesReports() {
     pageSizeOptions: PAGE_SIZE_OPTIONS,
     // Utilities
     parseTimestamp,
-    normalizeStatus,
+    // expose normalizer so components can use it without extra imports
+    normalizeSalesStatus,
   }
 }
 
-// ─── Compute helpers (exported for PDF) ─────────────────────────────────────
+// ─── Compute helpers (exported for PDF & external use) ──────────────────────
 export function computeTotalKg(order: Order): number {
   return (order.items || []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
 }

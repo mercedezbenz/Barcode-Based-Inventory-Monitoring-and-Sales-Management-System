@@ -6,7 +6,8 @@ import { AuthLoadingSkeleton } from "@/components/skeletons/dashboard-skeleton"
 import { Search, FileText, CheckCircle2, Factory } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { EncoderTaskProcessingModal } from "./encoder-task-processing-modal"
-import { updateOrderStatus } from "@/lib/order-utils"
+import { syncEncoderStatusToOrder } from "@/lib/order-utils"
+import { getFirebaseDb } from "@/lib/firebase-live"
 
 const formatCurrency = (amount: number): string =>
   `₱${amount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -97,60 +98,94 @@ export function EncoderDashboard() {
   const handleMarkOnDelivery = async (order: any) => {
     setProcessingId(order.id)
     try {
-      const { doc, updateDoc, serverTimestamp, getFirestore } = await import("firebase/firestore")
-      const db = getFirestore()
+      const { doc, updateDoc, serverTimestamp } = await import("firebase/firestore")
+      const db = getFirebaseDb()
       
-      // Update order status
-      if (order.orderId) {
-        await updateOrderStatus(order.orderId, "out_for_delivery")
-      }
-      
-      // Update encoder task status
+      // Step 1: Update encoder task status
       await updateDoc(doc(db, "encoder_tasks", order.id), {
         status: "ON_DELIVERY",
         onDeliveryAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       })
+      console.log(`[Encoder] ✅ encoder_tasks/${order.id} → ON_DELIVERY`)
+      
+      // Step 2: CRITICAL — Sync status to orders collection
+      const linkedId = order.orderId || order.linkedOrderId || order.id
+      console.log(`[Encoder] 🔄 Syncing order status for: ${linkedId} (orderId=${order.orderId}, linkedOrderId=${order.linkedOrderId})`)
+      
+      if (linkedId) {
+        const synced = await syncEncoderStatusToOrder(linkedId, "on_delivery", {
+          onDeliveryAt: serverTimestamp(),
+        })
+        if (!synced) {
+          console.error(`[Encoder] ❌ FAILED to sync order ${linkedId} to On Delivery. Sales dashboard will NOT reflect this change.`)
+        } else {
+          console.log(`[Encoder] ✅ Order ${linkedId} synced → On Delivery`)
+        }
+      } else {
+        console.error(`[Encoder] ❌ Encoder task ${order.id} has NO orderId or linkedOrderId — cannot sync to orders collection!`)
+      }
       
       const { toast } = await import("sonner")
       toast.success("Order dispatched for delivery!")
       
-    } catch (err) {
-      console.error(err)
+    } catch (err: any) {
+      console.error(`[Encoder] ❌ handleMarkOnDelivery failed:`, err?.message || err)
+      const { toast } = await import("sonner")
+      toast.error("Failed to dispatch: " + (err?.message || "Unknown error"))
     } finally {
       setProcessingId(null)
     }
   }
+
 
   const handleDeliverOrder = async (order: any) => {
     if (!window.confirm("Are you sure this order has been delivered?")) return;
     
     setProcessingId(order.id)
     try {
-      const { doc, updateDoc, serverTimestamp, getFirestore } = await import("firebase/firestore")
-      const db = getFirestore()
+      const { doc, updateDoc, serverTimestamp } = await import("firebase/firestore")
+      const db = getFirebaseDb()
       
-      // Update order status
-      if (order.orderId) {
-        await updateOrderStatus(order.orderId, "delivered")
-      }
-      
-      // Update encoder task status
+      // Step 1: Update encoder task status
       await updateDoc(doc(db, "encoder_tasks", order.id), {
         status: "COMPLETED",
         deliveredAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       })
+      console.log(`[Encoder] ✅ encoder_tasks/${order.id} → COMPLETED`)
+      
+      // Step 2: CRITICAL — Sync status to orders collection
+      const linkedId = order.orderId || order.linkedOrderId || order.id
+      console.log(`[Encoder] 🔄 Updating order status: ${linkedId} (orderId=${order.orderId}, linkedOrderId=${order.linkedOrderId})`)
+      
+      if (linkedId) {
+        const synced = await syncEncoderStatusToOrder(linkedId, "completed", {
+          deliveredAt: serverTimestamp(),
+        })
+        if (!synced) {
+          console.error(`[Encoder] ❌ FAILED to sync order ${linkedId} to Completed. Sales dashboard will NOT reflect this change.`)
+          console.error(`[Encoder] Order document not found for ID: ${linkedId}`)
+        } else {
+          console.log(`[Encoder] ✅ Order ${linkedId} synced → Completed`)
+        }
+      } else {
+        console.error(`[Encoder] ❌ Encoder task ${order.id} has NO orderId or linkedOrderId — cannot sync to orders collection!`)
+        console.error(`[Encoder] Order document not found`)
+      }
       
       const { toast } = await import("sonner")
       toast.success("Order marked as delivered!")
       
-    } catch (err) {
-      console.error(err)
+    } catch (err: any) {
+      console.error(`[Encoder] ❌ handleDeliverOrder failed:`, err?.message || err)
+      const { toast } = await import("sonner")
+      toast.error("Failed to mark delivered: " + (err?.message || "Unknown error"))
     } finally {
       setProcessingId(null)
     }
   }
+
 
   if (loading) {
     return <AuthLoadingSkeleton />

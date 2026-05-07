@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { getFirebaseDb } from "@/lib/firebase-live"
+import { deriveSalesStatus } from "@/lib/order-utils"
 import {
   collection as fbCollection,
   onSnapshot as fbOnSnapshot,
@@ -39,7 +40,10 @@ export interface Order {
   customerAddress: string
   shippingAddress: ShippingAddress
   items: OrderItem[]
-  status: "pending" | "ready_for_processing" | "processing" | "ready_for_delivery" | "completed" | "delivered" | "cancelled"
+  // Customer-facing tracking status (detailed workflow)
+  status: "pending" | "in_production" | "in_transit" | "out_for_delivery" | "delivered" | "cancelled" | "ready_for_processing" | "processing" | "ready_for_delivery" | "on_delivery" | "completed"
+  // Sales/analytics simplified status
+  salesStatus: "pending" | "on_delivery" | "completed" | "cancelled"
   salesInvoiceNo?: string
   deliveryReceiptNo?: string
   isInvoiceConfirmed?: boolean
@@ -121,8 +125,13 @@ function mapDocToOrder(docId: string, d: any): Order {
   postalCode: shipping.postalCode || shipping.zipCode || "",
 },
     items,
-    // Normalize status to lowercase, fallback to pending
+    // Normalize customer-facing status to lowercase, fallback to pending
     status: (d.status ? String(d.status).toLowerCase().replace(/\s+/g, '_') : "pending") as Order["status"],
+    // Sales status: read directly from Firestore if available, otherwise derive from customer status
+    salesStatus: (d.salesStatus 
+      ? String(d.salesStatus).toLowerCase().replace(/\s+/g, '_') 
+      : deriveSalesStatus(d.status ? String(d.status).toLowerCase().replace(/\s+/g, '_') : "pending")
+    ) as Order["salesStatus"],
     salesInvoiceNo: d.salesInvoiceNo || d.invoiceNo || "",
     deliveryReceiptNo: d.deliveryReceiptNo || d.receiptNo || "",
     isInvoiceConfirmed: Boolean(d.isInvoiceConfirmed || d.confirmed),

@@ -26,7 +26,7 @@ import { useOrderDetails } from "@/hooks/useOrderDetails"
 import { ReceiptView } from "./receipt-view"
 import { AuthLoadingSkeleton } from "@/components/skeletons/dashboard-skeleton"
 import { useAuth } from "@/hooks/use-auth"
-import { updateOrderStatus } from "@/lib/order-utils"
+import { updateOrderStatus, syncEncoderStatusToOrder } from "@/lib/order-utils"
 
 // ─── Helpers ───
 const parseDate = (d: any): Date | null => {
@@ -160,7 +160,12 @@ export function OrderDetails({ orderId }: OrderDetailsProps) {
       
       // STEP 1: Update order details (without touching status directly)
       await updateDoc(doc(db, "orders", orderId), updateData)
-      await updateOrderStatus(orderId, "in_production")
+      
+      // Use syncEncoderStatusToOrder for reliable status update
+      const synced = await syncEncoderStatusToOrder(orderId, "ready_for_processing")
+      if (!synced) {
+        console.error(`[OrderDetails] ❌ Failed to sync order ${orderId} to ready_for_processing`)
+      }
       console.log("✅ Order updated");
       
       // STEP 2: Prevent duplicate encoder tasks

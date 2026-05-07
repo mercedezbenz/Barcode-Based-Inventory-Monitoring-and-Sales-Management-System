@@ -19,7 +19,7 @@ import { Package, Clock, AlertTriangle, ShieldCheck, ChevronRight, CheckCircle2,
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import { updateOrderStatus } from "@/lib/order-utils"
+import { syncEncoderStatusToOrder } from "@/lib/order-utils"
 
 
 interface EncoderTaskProcessingModalProps {
@@ -203,8 +203,20 @@ export function EncoderTaskProcessingModal({ task, isOpen, onClose }: EncoderTas
         scanned: false
       })
 
-      // Fix applied here
-      await updateOrderStatus(task.orderId, "in_production")
+      // Sync order status to the orders collection
+      const linkedId = task.orderId || task.linkedOrderId || task.id
+      console.log(`[EncoderModal] 🔄 Syncing order ${linkedId} to ready_for_processing (orderId=${task.orderId}, linkedOrderId=${task.linkedOrderId})`)
+      
+      if (linkedId) {
+        const synced = await syncEncoderStatusToOrder(linkedId, "ready_for_processing")
+        if (!synced) {
+          console.error(`[EncoderModal] ❌ Failed to sync order ${linkedId} to ready_for_processing`)
+        } else {
+          console.log(`[EncoderModal] ✅ Order ${linkedId} synced to Pending (ready_for_processing)`)
+        }
+      } else {
+        console.error(`[EncoderModal] ❌ Task ${task.id} has no orderId or linkedOrderId — cannot sync to orders collection`)
+      }
 
       toast.success("Selection confirmed! Task moved to Verification tab.")
       onClose() // Close the modal so it appears in the next tab
@@ -400,8 +412,20 @@ export function EncoderTaskProcessingModal({ task, isOpen, onClose }: EncoderTas
           updatedAt: serverTimestamp()
         })
 
-        console.log("[ENCODER_SCAN] STATUS UPDATE → IN TRANSIT after scan complete")
-        await updateOrderStatus(task.orderId, "in_transit")
+        console.log("[ENCODER_SCAN] STATUS UPDATE → FOR_DELIVERY after scan complete")
+        const linkedId = task.orderId || task.linkedOrderId || task.id
+        console.log(`[ENCODER_SCAN] 🔄 Syncing order ${linkedId} to ready_for_delivery (orderId=${task.orderId}, linkedOrderId=${task.linkedOrderId})`)
+        
+        if (linkedId) {
+          const synced = await syncEncoderStatusToOrder(linkedId, "ready_for_delivery")
+          if (!synced) {
+            console.error(`[ENCODER_SCAN] ❌ Failed to sync order ${linkedId} to ready_for_delivery`)
+          } else {
+            console.log(`[ENCODER_SCAN] ✅ Order ${linkedId} synced to Pending (ready_for_delivery)`)
+          }
+        } else {
+          console.error(`[ENCODER_SCAN] ❌ Task ${task.id} has no orderId or linkedOrderId — cannot sync to orders`)
+        }
 
         toast.success("🎉 All batches verified! Task moved to For Delivery.")
         onClose()
