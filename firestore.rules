@@ -1,0 +1,162 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ✅ Helper: check if user is logged in
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    // ✅ Helper: fetch the current user's role from Firestore safely
+    function userRole() {
+      return isAuthed() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'guest')
+        : "guest";
+    }
+
+    // ✅ Helper: allow STAFF, ADMIN, PURCHASING, or ENCODER (any capitalization)
+    // NOTE: 'owner' is intentionally EXCLUDED — owner is read-only
+    function isStaffOrAdmin() {
+      return isAuthed() &&
+        (userRole() in ['STAFF', 'ADMIN', 'staff', 'admin', 'Staff', 'Admin', 'purchasing', 'PURCHASING', 'Purchasing', 'encoder', 'ENCODER', 'Encoder', 'encoder ', ' encoder', 'Encoder ']);
+    }
+
+    // ✅ If you want admin-only (for viewing all users)
+    function isAdmin() {
+      return isAuthed() &&
+        (userRole() in ['ADMIN', 'admin', 'Admin']);
+    }
+
+    // ---- USERS Collection ----
+    match /users/{userId} {
+      // Ensure user doc is readable by anyone authenticated (including themselves)
+      allow read: if isAuthed();
+      allow write: if isAuthed() && request.auth.uid == userId;
+
+      // Admin (any casing) can read AND UPDATE all user profiles
+      allow read, update: if isAdmin();
+      
+      // Allow delete only for Admins
+      allow delete: if isAdmin();
+    }
+
+    // ---- INVENTORY ----
+    match /inventory/{itemId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin() || userRole() in ['encoder','ENCODER','Encoder'];
+    }
+
+    // ---- PRODUCTS ----
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin() || userRole() in ['encoder','ENCODER','Encoder'];
+    }
+
+    // ---- CATEGORIES ----
+    match /categories/{categoryId} {
+      allow read: if true;              // ⭐ Guest can view categories
+      allow write: if isStaffOrAdmin();
+    }
+
+    // ---- CART ----
+    match /cart/{cartId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
+    }
+
+    // ---- CUSTOMER TRANSACTIONS ----
+    match /customer_transactions/{transactionId} {
+      allow read: if true;              // ⭐ Guest can view transactions
+      allow write: if isStaffOrAdmin() || isAuthed();
+    }
+
+    // ---- DELIVERIES ----
+    match /deliveries/{deliveryId} {
+      allow read: if true;              // ⭐ Guest can view deliveries
+      allow write: if isStaffOrAdmin();
+    }
+
+    // ⭐ DELIVERY LOGS (used by handlePickupScan / handleCompleteScan)
+    match /delivery_logs/{logId} {
+      allow read: if true;              // ⭐ Guest can view delivery logs
+      allow write: if isStaffOrAdmin() || isAuthed();
+    }
+
+    // ---- STOCK LOGS ----
+    match /stock_logs/{logId} {
+      allow read: if true;              // ⭐ Guest can view stock logs
+      allow write: if isStaffOrAdmin();
+    }
+
+    // ---- STOCK MOVEMENTS ----
+    match /stock_movements/{movementId} {
+      allow read: if true;              // ⭐ Guest can view stock movements
+      allow write: if isStaffOrAdmin() || userRole() in ['encoder','ENCODER','Encoder'];
+    }
+
+    // ---- TRANSACTIONS (inventory transaction log) ----
+    match /transactions/{transactionId} {
+      allow read: if true;              // ⭐ Guest can view transactions
+      allow write: if isStaffOrAdmin();
+    }
+
+    // ---- ORDERS (customer orders for sales dashboard) ----
+    match /orders/{orderId} {
+      allow read: if isAuthed();
+      allow create: if true;
+      allow update: if isAuthed() && userRole() in ['sales', 'SALES', 'Sales', 'encoder', 'ENCODER', 'Encoder', 'admin', 'ADMIN', 'Admin'];
+      allow delete: if isAdmin();
+    }
+
+    // ---- EVALUATION MODULE ----
+    match /evaluations/{evalId} {
+      allow read: if isAuthed();
+      allow write: if isStaffOrAdmin();
+    }
+
+    // ---- ENCODER TASKS ----
+    match /encoder_tasks/{taskId} {
+      allow read: if isAuthed();
+      allow create: if isAuthed() && userRole() in ['encoder', 'ENCODER', 'Encoder', 'sales', 'SALES', 'Sales', 'admin', 'ADMIN', 'Admin'];
+      allow update: if isAuthed() && userRole() in ['encoder', 'ENCODER', 'Encoder', 'admin', 'ADMIN', 'Admin'];
+      allow write: if isAuthed() && userRole() in ['encoder', 'ENCODER', 'Encoder'];
+      allow delete: if false;
+    }
+
+    // ---- OTHER COLLECTIONS ----
+    match /locations/{locationId} {
+      allow read: if isAuthed();
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /qc_reports/{reportId} {
+      allow read: if isAuthed();
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /expiration_alerts/{alertId} {
+      allow read: if isAuthed();
+      allow write: if isStaffOrAdmin();
+    }
+
+    // ---- GENERATED BARCODES ----
+    match /generated_barcodes/{barcodeId} {
+      allow read: if isAuthed();
+      allow create: if isStaffOrAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    // ---- NOTIFICATIONS ----
+    match /notifications/{notifId} {
+      allow read: if isAuthed();
+      allow write: if isAuthed();
+    }
+
+    // Deny everything else by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

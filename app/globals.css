@@ -1,0 +1,324 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Updated color tokens to sky blue and white theme for DecktaGo */
+  --background: oklch(1 0 0);
+  /* #ffffff */
+  --foreground: oklch(0.35 0.01 258);
+  /* #475569 */
+  --card: oklch(0.98 0.005 220);
+  /* #f8fafc */
+  --card-foreground: oklch(0.35 0.01 258);
+  /* #475569 */
+  --popover: oklch(1 0 0);
+  /* #ffffff */
+  --popover-foreground: oklch(0.35 0.01 258);
+  /* #475569 */
+  --primary: oklch(0.55 0.15 220);
+  /* #0ea5e9 sky-500 */
+  --primary-foreground: oklch(1 0 0);
+  /* #ffffff */
+  --secondary: oklch(0.96 0.005 220);
+  /* #f1f5f9 */
+  --secondary-foreground: oklch(0.35 0.01 258);
+  /* #475569 */
+  --muted: oklch(0.98 0.003 220);
+  /* #f8fafc */
+  --muted-foreground: oklch(0.32 0.01 258);
+  /* #4b5563 */
+  --accent: oklch(0.65 0.15 220);
+  /* #38bdf8 sky-400 */
+  --accent-foreground: oklch(1 0 0);
+  /* #ffffff */
+  --destructive: oklch(0.55 0.18 45);
+  /* #d97706 */
+  --destructive-foreground: oklch(1 0 0);
+  /* #ffffff */
+  --border: oklch(0.92 0.005 220);
+  /* #e2e8f0 */
+  --input: oklch(1 0 0);
+  /* #ffffff */
+  --ring: oklch(0.55 0.15 220 / 0.5);
+  /* sky focus ring */
+  --chart-1: oklch(0.55 0.15 220);
+  /* #0ea5e9 */
+  --chart-2: oklch(0.65 0.15 220);
+  /* #38bdf8 */
+  --chart-3: oklch(0.45 0.15 220);
+  /* #0284c7 */
+  --chart-4: oklch(0.75 0.15 220);
+  /* #7dd3fc */
+  --chart-5: oklch(0.32 0.01 258);
+  /* #4b5563 */
+  --radius: 0.5rem;
+  --sidebar: oklch(0.96 0.005 220);
+  /* #f1f5f9 */
+  --sidebar-foreground: oklch(0.35 0.01 258);
+  /* #475569 */
+  --sidebar-primary: oklch(1 0 0);
+  /* #ffffff */
+  --sidebar-primary-foreground: oklch(0.55 0.15 220);
+  /* #0ea5e9 */
+  --sidebar-accent: oklch(0.55 0.15 220);
+  /* #0ea5e9 */
+  --sidebar-accent-foreground: oklch(1 0 0);
+  /* #ffffff */
+  --sidebar-border: oklch(0.92 0.005 220);
+  /* #e2e8f0 */
+  --sidebar-ring: oklch(0.55 0.15 220 / 0.5);
+  /* sky focus ring */
+}
+
+.dark {
+  /* Lighter, more comfortable dark palette */
+  --background: oklch(0.18 0.004 258);
+  /* lighter dark gray */
+  --foreground: oklch(0.95 0.004 258);
+  /* almost-white text */
+  --card: oklch(0.22 0.004 258);
+  /* panel background */
+  --card-foreground: oklch(0.95 0.004 258);
+  --popover: oklch(0.20 0.004 258);
+  --popover-foreground: oklch(0.95 0.004 258);
+  --primary: oklch(0.62 0.16 220);
+  /* vivid sky */
+  --primary-foreground: oklch(0.18 0.004 258);
+  --secondary: oklch(0.28 0.004 258);
+  --secondary-foreground: oklch(0.90 0.004 258);
+  --muted: oklch(0.26 0.004 258);
+  --muted-foreground: oklch(0.70 0.004 258);
+  --accent: oklch(0.7 0.16 220);
+  --accent-foreground: oklch(0.18 0.004 258);
+  --destructive: oklch(0.55 0.2 30);
+  --destructive-foreground: oklch(0.95 0.004 258);
+  --border: oklch(0.32 0.004 258);
+  /* visible borders */
+  --input: oklch(0.24 0.004 258);
+  --ring: oklch(0.62 0.16 220 / 0.45);
+  --chart-1: oklch(0.7 0.16 220);
+  --chart-2: oklch(0.63 0.16 240);
+  --chart-3: oklch(0.65 0.17 200);
+  --chart-4: oklch(0.58 0.15 260);
+  --chart-5: oklch(0.52 0.02 258);
+  --sidebar: oklch(0.20 0.004 258);
+  /* lighter sidebar */
+  --sidebar-foreground: oklch(0.95 0.004 258);
+  --sidebar-primary: oklch(0.62 0.16 220);
+  --sidebar-primary-foreground: oklch(0.20 0.004 258);
+  --sidebar-accent: oklch(0.7 0.16 220);
+  --sidebar-accent-foreground: oklch(0.20 0.004 258);
+  --sidebar-border: oklch(0.30 0.004 258);
+  --sidebar-ring: oklch(0.62 0.16 220 / 0.45);
+}
+
+@theme inline {
+  /* Reverted font back to Geist Sans */
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5;
+  }
+}
+
+/* Utility class to hide caret on specific elements */
+.no-caret {
+  caret-color: transparent !important;
+  cursor: none !important;
+  user-select: none !important;
+}
+
+/* Ensure all card content and dashboard text elements don't show text cursor */
+.card-content *:not(input):not(textarea):not([contenteditable="true"]),
+[class*="CardContent"] *:not(input):not(textarea):not([contenteditable="true"]) {
+  cursor: inherit !important;
+  caret-color: transparent !important;
+}
+
+/* ─── Search Highlight ────────────────────────────────────────────────── */
+.search-highlight {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.25) 100%);
+  color: inherit;
+  border-radius: 2px;
+  padding-inline: 1px;
+  box-decoration-break: clone;
+  animation: highlight-pulse 1.5s ease-in-out 1;
+}
+
+@keyframes highlight-pulse {
+  0%, 100% { background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.25) 100%); }
+  50% { background: linear-gradient(135deg, rgba(59, 130, 246, 0.30) 0%, rgba(59, 130, 246, 0.40) 100%); }
+}
+
+/* ─── Filter toolbar select triggers — smooth micro-interactions ─────── */
+[data-slot="select-trigger"] {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+[data-slot="select-trigger"]:hover {
+  transform: translateY(-0.5px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+[data-slot="select-trigger"]:active {
+  transform: translateY(0);
+}
+
+/* ─── Mobile Inventory Cards ─────────────────────────────────────── */
+@keyframes card-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.inventory-mobile-card {
+  animation: card-slide-in 0.35s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.inventory-mobile-card:nth-child(1) { animation-delay: 0ms; }
+.inventory-mobile-card:nth-child(2) { animation-delay: 40ms; }
+.inventory-mobile-card:nth-child(3) { animation-delay: 80ms; }
+.inventory-mobile-card:nth-child(4) { animation-delay: 120ms; }
+.inventory-mobile-card:nth-child(5) { animation-delay: 160ms; }
+.inventory-mobile-card:nth-child(6) { animation-delay: 200ms; }
+.inventory-mobile-card:nth-child(7) { animation-delay: 240ms; }
+.inventory-mobile-card:nth-child(8) { animation-delay: 280ms; }
+.inventory-mobile-card:nth-child(9) { animation-delay: 320ms; }
+.inventory-mobile-card:nth-child(10) { animation-delay: 360ms; }
+
+/* Smooth press-down feedback for touch on mobile */
+@media (max-width: 1023px) {
+  .inventory-mobile-card {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+}
+
+/* ─── Scroll Hint Animation ──────────────────────────────────────── */
+@keyframes scroll-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(3px); }
+}
+
+.scroll-hint-chevron {
+  animation: scroll-bounce 1.5s ease-in-out infinite;
+}
+
+.scroll-hint-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+/* REMOVE NUMBER INPUT SPINNER */
+
+/* Chrome, Safari, Edge */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.highlight-row {
+  background-color: rgba(59, 130, 246, 0.12) !important;
+  box-shadow: inset 4px 0 0 0 #3b82f6 !important;
+  transition: all 0.3s ease;
+  z-index: 10;
+  position: relative;
+}
+
+.highlight-row {
+  background-color: #ffe58f !important;
+  transition: background-color 0.3s ease;
+}
+
+.dark .highlight-row {
+  background-color: #614d0c !important;
+}
+
+/* ─── Sales Dashboard Animations ─────────────────────────────────── */
+@keyframes kpi-enter {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.kpi-card-enter { animation: kpi-enter 0.5s cubic-bezier(0.22,1,0.36,1) both; }
+.kpi-card-enter:nth-child(1) { animation-delay: 0ms; }
+.kpi-card-enter:nth-child(2) { animation-delay: 60ms; }
+.kpi-card-enter:nth-child(3) { animation-delay: 120ms; }
+.kpi-card-enter:nth-child(4) { animation-delay: 180ms; }
+.kpi-card-enter:nth-child(5) { animation-delay: 240ms; }
+.kpi-card-enter:nth-child(6) { animation-delay: 300ms; }
+
+@keyframes chart-fade {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.chart-fade-in { animation: chart-fade 0.6s cubic-bezier(0.22,1,0.36,1) 0.3s both; }
+
+@keyframes shimmer-slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+.kpi-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+  animation: shimmer-slide 3s ease-in-out infinite;
+  pointer-events: none;
+}

@@ -1,0 +1,86 @@
+# 📦 DeckTaGo: Barcode-Based Inventory Monitoring and Sales Management System
+
+## Description
+DeckTaGo is a modern, robust web application designed to streamline inventory tracking and sales management. Specifically engineered for environments that require precise weight-based tracking (in kilograms), it uses barcode scanning to facilitate fast, accurate transactions. The system ensures data integrity through real-time synchronization, enforces robust role-based access (Owner, Encoder, and Sales), and utilizes FIFO (First-In, First-Out) logic for inventory deductions, making stock management seamless and reliable.
+
+---
+
+## 1. Technologies Used
+- **Next.js & React**: Powers the core application framework, providing fast rendering, efficient routing, and a component-driven architecture.
+- **Firebase (Firestore & Authentication)**: Serves as the backend for secure role-based login and a real-time NoSQL database to instantly sync inventory changes across all devices.
+- **TypeScript**: Ensures type safety across the application, reducing runtime errors and improving developer experience.
+- **Tailwind CSS & shadcn/ui**: Used for building a highly responsive, modern, and accessible user interface quickly.
+- **Zustand**: Manages global application state efficiently.
+- **Recharts**: Powers the analytical charts and sales summary dashboards for the Owner view.
+- **jsbarcode / react-barcode**: Facilitates the generation and processing of barcodes for quick product scanning.
+
+---
+
+## 2. Features
+- 📷 **Barcode Scanning Integration**: Quickly process incoming and outgoing stock by scanning product barcodes.
+- ⚖️ **Precise Weight-Based Tracking**: Track inventory accurately by weight (kg) with automatic conversion to box equivalents.
+- 👥 **Role-Based Access Control**: Dedicated dashboards and restricted views for 'Owners' (full analytics), 'Encoders' (data entry), and 'Sales' (handling customer orders integrated from the customer website).
+- 🔄 **FIFO Deduction Logic**: Automatically deducts stock from the oldest batches first to prevent product expiration.
+- 📊 **Comprehensive Sales Dashboard**: Visualizes transaction history, recent activities, and top-selling products.
+- 🔔 **Smart Notifications**: Automated, real-time alerts for low-stock items and approaching expirations.
+- ⚡ **Real-Time Synchronization**: Instant UI updates across all clients when transactions occur.
+
+---
+
+## 3. Keyboard Shortcuts
+- **`Enter`**: Submits forms and triggers barcode search after scanning.
+- **`Tab`**: Quickly navigate between input fields during manual inventory entry.
+- **`Esc`**: Closes active modals (like the User Guide or transaction dialogs).
+
+---
+
+## 4. Development Process
+- **Planning**: Identified the critical need for a system that handles not just item quantities, but precise weight measurements and batch-specific expirations. Defined the distinct workflows for Owners, Encoders, and Sales.
+- **Development**: Started by setting up the Next.js foundation and Firebase schema. Built out the core inventory CRUD operations, followed by the complex FIFO deduction algorithm using Firebase atomic transactions (`runTransaction`). Polished the UI using Tailwind CSS and shadcn/ui.
+- **Testing & Refinement**: Conducted rigorous testing on real-time data synchronization, ensuring that concurrent transactions wouldn't result in stale data. Refined dashboard queries to accurately reflect "Out" transactions and low-stock aggregation.
+
+---
+
+## 5. What I Learned
+- **Complex Firebase Transactions**: Mastered using Firestore's `runTransaction` and `increment` to perform atomic updates, preventing data race conditions during inventory deduction.
+- **State Management Optimization**: Learned to balance local component state with global state (Zustand) and remote database state to maintain a snappy, responsive UI.
+- **Role-Based Routing**: Gained deep insights into implementing secure, role-based visibility restrictions on both the frontend UI components and backend database rules.
+
+---
+
+## 6. Improvements / Future Enhancements
+- 📄 **Data Exporting**: Add the ability to export sales and inventory reports to PDF or Excel for external auditing.
+- 📈 **Predictive Analytics**: Implement machine learning or basic algorithms to forecast stock depletion and suggest reorder dates.
+- 🖨️ **Hardware Integration**: Add seamless support for receipt printers and native integrations with advanced industrial barcode scanners.
+- 🌐 **Offline Support**: Implement Service Workers to allow encoders to scan items offline and sync when the connection is restored.
+
+---
+
+## 7. Demo / Live Preview
+🎥 **Video Demo:**
+<!-- Insert YouTube or screen recording link here -->
+*[Video Placeholder]*
+
+🌐 **Live Preview:**
+<!-- Insert Vercel/Netlify deployment link here -->
+*[Live Link Placeholder]*
+
+---
+
+## 8. Screenshots
+
+### Owner Dashboard
+<!-- ![Owner Dashboard Placeholder](link_here) -->
+*[Placeholder for Dashboard Screenshot]*
+
+### Barcode Scanning Workflow
+<!-- ![Scanner Placeholder](link_here) -->
+*[Placeholder for Scanner Screenshot]*
+
+### Smart Notifications
+<!-- ![Notifications Placeholder](link_here) -->
+*[Placeholder for Notifications Screenshot]*
+
+---
+
+*Designed and developed with ❤️ for modern inventory management.*
