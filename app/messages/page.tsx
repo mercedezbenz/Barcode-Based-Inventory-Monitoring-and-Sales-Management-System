@@ -1,6 +1,13 @@
 'use client';
 
-import { MoreVertical, X, Send, Info, Search } from "lucide-react";
+import {
+  MoreVertical,
+  X,
+  Send,
+  Info,
+  Search,
+  ImagePlus
+} from "lucide-react";
 import { Archive, RotateCcw, Trash2 } from "lucide-react"
 import {
   collection,
@@ -17,6 +24,8 @@ import {
   deleteDoc,
   increment,
 } from "firebase/firestore";
+import axios from 'axios';
+import { useRouter } from 'next/navigation';
 
 import { useChatStore } from '@/store/chat-store';
 
@@ -41,6 +50,13 @@ export default function MessagesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+const [previewImage, setPreviewImage] =
+  useState<string | null>(null);
+
+const [uploading, setUploading] =
+  useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -87,6 +103,53 @@ export default function MessagesPage() {
 
     return () => unsub();
   }, [selectedChat]);
+  const handleImageUpload = async (file: File) => {
+  if (!selectedChat) return;
+
+  try {
+    setUploading(true);
+
+    const data = new FormData();
+
+    data.append('file', file);
+
+    data.append(
+      'upload_preset',
+      process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!
+    );
+
+    const res = await axios.post(
+      `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+      data
+    );
+
+    const imageUrl = res.data.secure_url;
+
+    const db = getFirebaseDb();
+    if (!db) return;
+
+    await addDoc(
+      
+      collection(db, 'chats', selectedChat.id, 'messages'),
+      {
+        sender: 'sales',
+        image: imageUrl,
+        createdAt: new Date(),
+      }
+    );
+    await updateDoc(doc(db, 'chats', selectedChat.id), {
+  lastMessage: '__IMAGE__',
+  lastTime: new Date(),
+  lastSender: 'sales',
+});
+
+    setUploading(false);
+
+  } catch (err) {
+    setUploading(false);
+    console.error(err);
+  }
+};
 
   // ✉️ SEND MESSAGE
   const sendMessage = async () => {
@@ -207,7 +270,11 @@ export default function MessagesPage() {
           {chat.fullName}
         </div>
         <div className={`text-xs truncate ${chat.unreadCount_sales > 0 && chat.id !== activeChatId ? 'font-bold text-gray-900 dark:text-gray-100' : 'text-gray-400'}`}>
-          {chat.lastMessage}
+          {chat.lastMessage === '__ORDER__'
+  ? ' New Order'
+  : chat.lastMessage === '__IMAGE__'
+    ? ' Photo'
+    : chat.lastMessage}
         </div>
       </div>
       
@@ -451,13 +518,106 @@ export default function MessagesPage() {
 
   {/* 💬 MESSAGE BUBBLE */}
   <div
-    className={`max-w-[70%] px-3 py-2 rounded-2xl animate-in fade-in zoom-in duration-300 ${
-      m.sender === 'sales'
-        ? 'bg-[#2787b4] text-white'
-        : 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white'
-    }`}
-  >
-    {m.text}
+  onClick={() => {
+    if (m.orderId) {
+      router.push(`/orders/details/?id=${m.orderId}`);
+    }
+  }}
+  className={`max-w-[70%] ${
+  m.orderId
+    ? 'cursor-pointer hover:scale-[1.01] transition'
+    : ''
+} text-sm ${
+  m.image || m.orderItems
+    ? ''
+    : 'px-3 py-2 rounded-2xl'
+} ${
+  m.image || m.orderItems
+    ? ''
+    : m.sender === 'sales'
+      ? 'bg-[#2787b4] text-white'
+      : 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white'
+}`}
+>
+    {m.orderItems ? (
+
+  <div className="space-y-3 bg-[#2787b4] text-white rounded-3xl p-4 shadow-lg">
+
+    <div className="flex items-center justify-between">
+      <p className="font-semibold text-sm">
+         New Order
+      </p>
+
+      <span className="text-[11px] opacity-70">
+        Tap to view
+      </span>
+    </div>
+
+    <div className="space-y-2">
+      {m.orderItems.map((item: any, idx: number) => (
+
+        <div
+          key={idx}
+          className="flex items-center gap-3 bg-[#4c9dc4] rounded-2xl p-3 border border-white/40"
+        >
+
+          <img
+            src={item.image}
+            alt={item.name}
+            className="w-16 h-16 rounded-xl object-cover bg-white"
+          />
+
+          <div className="flex-1 min-w-0">
+
+            <p className="text-sm font-medium truncate">
+              {item.name}
+            </p>
+
+            <p className="text-xs opacity-80">
+              Qty: {item.quantity} kg
+            </p>
+
+            <p className="text-xs opacity-80">
+              ₱{item.price} / kg
+            </p>
+
+          </div>
+
+          <div className="text-sm font-semibold whitespace-nowrap">
+            ₱{item.price * item.quantity}
+          </div>
+
+        </div>
+
+      ))}
+    </div>
+
+    <div className="border-t border-white/20 pt-2 flex items-center justify-between">
+
+      <span className="text-sm opacity-80">
+        Total
+      </span>
+
+      <span className="font-bold text-base">
+        ₱{m.orderTotal}
+      </span>
+
+    </div>
+
+  </div>
+
+) : m.image ? (
+
+  <img
+    src={m.image}
+    alt="attachment"
+    onClick={() => setPreviewImage(m.image)}
+    className="max-w-[220px] rounded-2xl object-cover shadow cursor-pointer hover:opacity-95"
+  />
+
+) : (
+  m.text
+)}
   </div>
 </div>
 
@@ -485,6 +645,29 @@ export default function MessagesPage() {
   )}
 
   {/* INPUT */}
+  <label
+  className={`cursor-pointer p-2 ${
+    uploading
+      ? 'opacity-50 pointer-events-none'
+      : 'text-gray-400 hover:text-[#2787b4]'
+  }`}
+>
+
+  <ImagePlus size={22} />
+
+  <input
+    type="file"
+    accept="image/*"
+    className="hidden"
+    onChange={async (e) => {
+      const file = e.target.files?.[0];
+
+      if (file) {
+        await handleImageUpload(file);
+      }
+    }}
+  />
+</label>
   <input
   value={text}
   onChange={(e) => setText(e.target.value)}
@@ -628,7 +811,88 @@ export default function MessagesPage() {
                 key={m.id}
                 className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-sm"
               >
-                {m.text}
+                {m.orderItems ? (
+
+  <div className="space-y-3">
+
+    {/* HEADER */}
+    <div className="flex items-center justify-between">
+      <p className="font-bold text-base">
+        New Order Placed
+      </p>
+
+      <span className="text-[11px] bg-white/20 px-2 py-1 rounded-full">
+        Tap to view
+      </span>
+    </div>
+
+    {/* ITEMS */}
+    <div className="space-y-3">
+
+      {m.orderItems.map((item: any, idx: number) => (
+
+        <div
+          key={idx}
+          className="border border-white/60 rounded-2xl p-3 flex gap-3"
+        >
+
+          {/* IMAGE */}
+          <img
+            src={item.image}
+            alt={item.name}
+            className="w-20 h-20 rounded-lg object-cover bg-white"
+          />
+
+          {/* INFO */}
+          <div className="flex-1">
+
+            <p className="font-bold leading-tight">
+              {item.name}
+            </p>
+
+            <p className="text-sm opacity-90">
+              Qty: {item.quantity} kg
+            </p>
+
+            <p className="text-sm opacity-90">
+              ₱ {item.price}
+            </p>
+
+            <p className="font-bold text-sm mt-1">
+              Subtotal: ₱ {item.price * item.quantity}
+            </p>
+
+          </div>
+
+        </div>
+
+      ))}
+
+    </div>
+
+    {/* TOTAL */}
+    <div className="border-t border-white/50 pt-3">
+
+      <p className="font-bold text-xl">
+        Total: ₱ {m.orderTotal}
+      </p>
+
+    </div>
+
+  </div>
+
+) : m.image ? (
+
+  <img
+    src={m.image}
+    alt="attachment"
+    onClick={() => setPreviewImage(m.image)}
+    className="max-w-[220px] rounded-2xl object-cover shadow cursor-pointer hover:opacity-95"
+  />
+
+) : (
+  m.text
+)}
               </div>
             ))}
         </div>
@@ -638,6 +902,29 @@ export default function MessagesPage() {
 )}
 
   </div>
+{previewImage && (
+  <div
+    className="fixed inset-0 z-[999] bg-black/90 flex items-center justify-center p-4"
+    onClick={() => setPreviewImage(null)}
+  >
+
+    <button
+      className="absolute top-4 right-4 text-white text-3xl"
+      onClick={() => setPreviewImage(null)}
+    >
+      ✕
+    </button>
+
+    <img
+      src={previewImage}
+      alt="preview"
+      className="max-w-full max-h-full rounded-xl"
+      onClick={(e) => e.stopPropagation()}
+    />
+
+  </div>
+)}
+
 </MainLayout>
     </ProtectedRoute>
   );
