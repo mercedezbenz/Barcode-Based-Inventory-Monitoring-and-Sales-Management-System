@@ -296,7 +296,7 @@ export function OrdersTable() {
                   <th className="px-4 py-4 text-left font-bold border-b border-gray-100 dark:border-border w-[140px]">Phone</th>
                   <th className="px-4 py-4 text-left font-bold border-b border-gray-100 dark:border-border w-[260px]">Address</th>
                   <th className="px-6 py-4 text-left font-bold border-b border-gray-100 dark:border-border w-[320px]">Products</th>
-                  <th className="px-4 py-4 text-center font-bold border-b border-gray-100 dark:border-border w-[100px]">Unit</th>
+                  <th className="px-4 py-4 text-center font-bold border-b border-gray-100 dark:border-border w-[100px]">Quantity</th>
                   <th className="px-4 py-4 text-center font-bold border-b border-gray-100 dark:border-border w-[130px]">Status</th>
                   <th className="px-4 py-4 text-center font-bold border-b border-gray-100 dark:border-border w-[140px]">Date</th>
                   <th className="px-4 py-4 text-right font-bold border-b border-gray-100 dark:border-border w-[100px] pr-6">Action</th>
@@ -381,20 +381,23 @@ export function OrdersTable() {
                           )}
                         </td>
 
-                        {/* Unit */}
-                        <td className="px-4 py-4 align-top text-center">
-                          {order.items && order.items.length > 0 ? (
-                            <div className="space-y-1">
-                              {order.items.slice(0, 3).map((item, idx) => (
-                                <p key={idx} className="text-[13px] text-gray-500 font-medium truncate">
-                                  {item.unit ? item.unit.charAt(0).toUpperCase() + item.unit.slice(1).toLowerCase() : "—"}
-                                </p>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-[13px] text-gray-400">—</p>
-                          )}
-                        </td>
+                     {/* Quantity */}
+<td className="px-4 py-4 align-top text-center">
+  {order.items && order.items.length > 0 ? (
+    <div className="space-y-1">
+      {order.items.slice(0, 3).map((item, idx) => (
+        <p
+          key={idx}
+          className="text-[13px] text-gray-700 font-semibold truncate"
+        >
+          {item.quantity || 0} KG
+        </p>
+      ))}
+    </div>
+  ) : (
+    <p className="text-[13px] text-gray-400">—</p>
+  )}
+</td>
 
                         {/* Status — normalized via SalesStatusBadge */}
                         <td className="px-4 py-4 align-top text-center">

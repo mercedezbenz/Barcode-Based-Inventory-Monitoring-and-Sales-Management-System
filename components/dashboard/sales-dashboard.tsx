@@ -524,11 +524,11 @@ return (
                             <p className="font-medium text-sm text-gray-800 dark:text-foreground truncate leading-snug">
                               {order.customerName}
                             </p>
-                            <p className="text-[11px] text-gray-400 dark:text-muted-foreground mt-0.5 truncate">
-                              {order.items?.length || 0} item{(order.items?.length || 0) === 1 ? "" : "s"}: {
-                                order.items?.slice(0, 2).map(i => `${i.name} (${i.quantity} ${i.unit || "unit"})`).join(", ")
-                              }{order.items?.length > 2 ? "..." : ""}
-                            </p>
+                           <p className="text-[11px] text-gray-400 dark:text-muted-foreground mt-0.5 truncate">
+  {order.items?.map((item: any) =>
+    `${item.name} (${item.quantity} ${item.unit || "KG"})`
+  ).join(", ")}
+</p>
                           </div>
 
                           {/* Phone Number */}
