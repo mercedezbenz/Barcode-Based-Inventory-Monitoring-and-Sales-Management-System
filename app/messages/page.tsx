@@ -52,8 +52,20 @@ export default function MessagesPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-const [previewImage, setPreviewImage] =
-  useState<string | null>(null);
+const [previewImages, setPreviewImages] =
+  useState<string[]>([]);
+
+const [previewIndex, setPreviewIndex] =
+  useState(0);
+
+const [showViewer, setShowViewer] =
+  useState(false);
+
+const [selectedImages, setSelectedImages] =
+  useState<File[]>([]);
+
+const [imagePreviews, setImagePreviews] =
+  useState<string[]>([]);
 
 const [uploading, setUploading] =
   useState(false);
@@ -103,53 +115,96 @@ const [uploading, setUploading] =
 
     return () => unsub();
   }, [selectedChat]);
-  const handleImageUpload = async (file: File) => {
-  if (!selectedChat) return;
+  useEffect(() => {
+
+  if (!showViewer) return;
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+
+    if (e.key === 'ArrowRight') {
+      setPreviewIndex((prev) =>
+        prev < previewImages.length - 1
+          ? prev + 1
+          : prev
+      );
+    }
+
+    if (e.key === 'ArrowLeft') {
+      setPreviewIndex((prev) =>
+        prev > 0
+          ? prev - 1
+          : prev
+      );
+    }
+
+    if (e.key === 'Escape') {
+      setShowViewer(false);
+    }
+  };
+
+  window.addEventListener('keydown', handleKeyDown);
+
+  return () => {
+    window.removeEventListener(
+      'keydown',
+      handleKeyDown
+    );
+  };
+
+}, [showViewer, previewImages.length]);
+  const handleImageUpload = async () => {
+  if (!selectedChat || selectedImages.length === 0) return;
 
   try {
     setUploading(true);
 
-    const data = new FormData();
-
-    data.append('file', file);
-
-    data.append(
-      'upload_preset',
-      process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!
-    );
-
-    const res = await axios.post(
-      `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
-      data
-    );
-
-    const imageUrl = res.data.secure_url;
-
     const db = getFirebaseDb();
     if (!db) return;
 
-    await addDoc(
-      
-      collection(db, 'chats', selectedChat.id, 'messages'),
-      {
-        sender: 'sales',
-        image: imageUrl,
-        createdAt: new Date(),
-      }
-    );
-    await updateDoc(doc(db, 'chats', selectedChat.id), {
-  lastMessage: '__IMAGE__',
-  lastTime: new Date(),
-  lastSender: 'sales',
-});
+    for (const file of selectedImages) {
 
-    setUploading(false);
+      const data = new FormData();
+
+      data.append('file', file);
+
+      data.append(
+        'upload_preset',
+        process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!
+      );
+
+      const res = await axios.post(
+        `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+        data
+      );
+
+      const imageUrl = res.data.secure_url;
+
+      await addDoc(
+        collection(db, 'chats', selectedChat.id, 'messages'),
+        {
+          sender: 'sales',
+          image: imageUrl,
+          createdAt: new Date(),
+        }
+      );
+    }
+
+    await updateDoc(doc(db, 'chats', selectedChat.id), {
+      lastMessage: '__IMAGE__',
+      lastTime: new Date(),
+      lastSender: 'sales',
+    });
+
+    setSelectedImages([]);
+    setImagePreviews([]);
 
   } catch (err) {
-    setUploading(false);
     console.error(err);
+  } finally {
+    setUploading(false);
   }
 };
+  
 
   // ✉️ SEND MESSAGE
   const sendMessage = async () => {
@@ -611,7 +666,21 @@ const [uploading, setUploading] =
   <img
     src={m.image}
     alt="attachment"
-    onClick={() => setPreviewImage(m.image)}
+    onClick={() => {
+
+  const allImages = messages
+    .filter((msg) => msg.image)
+    .map((msg) => msg.image);
+
+  const clickedIndex =
+    allImages.indexOf(m.image);
+
+  setPreviewImages(allImages);
+
+  setPreviewIndex(clickedIndex);
+
+  setShowViewer(true);
+}}
     className="max-w-[220px] rounded-2xl object-cover shadow cursor-pointer hover:opacity-95"
   />
 
@@ -628,8 +697,49 @@ const [uploading, setUploading] =
           </div>
 
           <div className="border-t border-gray-200 dark:border-gray-700 
-                p-3 flex items-center gap-2 
                 bg-white dark:bg-[#101213]">
+
+  {/* 🔥 IMAGE PREVIEW */}
+  {imagePreviews.length > 0 && (
+    <div className="flex gap-2 overflow-x-auto overflow-y-visible px-3 pt-3 pb-2">
+
+      {imagePreviews.map((src, index) => (
+
+        <div
+          key={index}
+          className="relative overflow-visible shrink-0"
+        >
+
+          <img
+            src={src}
+            className="w-16 h-16 rounded-lg object-cover"
+          />
+
+          <button
+            onClick={() => {
+
+              setSelectedImages((prev) =>
+                prev.filter((_, i) => i !== index)
+              );
+
+              setImagePreviews((prev) =>
+                prev.filter((_, i) => i !== index)
+              );
+            }}
+            className="absolute top-0 right-0 translate-x-1/2 -translate-y-1/2 bg-black text-white rounded-full w-5 h-5 text-xs flex items-center justify-center z-10"
+          >
+            ✕
+          </button>
+
+        </div>
+
+      ))}
+
+    </div>
+  )}
+
+  {/* INPUT AREA */}
+  <div className="p-3 flex items-center gap-2">
   
   {/* ❌ CANCEL BUTTON (ONLY WHEN EDITING) */}
   {editingId && (
@@ -656,27 +766,52 @@ const [uploading, setUploading] =
   <ImagePlus size={22} />
 
   <input
-    type="file"
-    accept="image/*"
-    className="hidden"
-    onChange={async (e) => {
-      const file = e.target.files?.[0];
+  type="file"
+  accept="image/*"
+  multiple
+  className="hidden"
+  onChange={(e) => {
 
-      if (file) {
-        await handleImageUpload(file);
-      }
-    }}
-  />
+    const files = Array.from(
+      e.target.files || []
+    );
+
+    if (!files.length) return;
+
+    setSelectedImages((prev) => [
+      ...prev,
+      ...files
+    ]);
+
+    const previews = files.map((file) =>
+      URL.createObjectURL(file)
+    );
+
+    setImagePreviews((prev) => [
+      ...prev,
+      ...previews
+    ]);
+  }}
+/>
 </label>
   <input
   value={text}
   onChange={(e) => setText(e.target.value)}
-  onKeyDown={(e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      sendMessage();
+  onKeyDown={async (e) => {
+
+  if (e.key === 'Enter') {
+
+    e.preventDefault();
+
+    if (selectedImages.length > 0) {
+      await handleImageUpload();
     }
-  }}
+
+    if (text.trim()) {
+      await sendMessage();
+    }
+  }
+}}
   className="flex-1 border border-gray-300 dark:border-gray-700 
              px-3 py-2 rounded 
              bg-white dark:bg-[#101213] 
@@ -687,8 +822,25 @@ const [uploading, setUploading] =
 
   {/* SEND ICON */}
   <button
-  onClick={sendMessage}
-  className="text-[#2787b4] hover:opacity-80 transition flex items-center justify-center"
+  disabled={
+    !text.trim() &&
+    selectedImages.length === 0
+  }
+  onClick={async () => {
+
+  if (selectedImages.length > 0) {
+    await handleImageUpload();
+  }
+
+  if (text.trim()) {
+    await sendMessage();
+  }
+}}
+  className={`transition flex items-center justify-center ${
+  text.trim() || selectedImages.length > 0
+    ? 'text-[#2787b4] hover:opacity-80'
+    : 'text-gray-300 cursor-not-allowed'
+}`}
 >
   {editingId ? (
     // ✅ CHECK ICON
@@ -712,6 +864,7 @@ const [uploading, setUploading] =
     </svg>
   )}
 </button>
+</div>
 </div>
         </>
       )}
@@ -886,7 +1039,21 @@ const [uploading, setUploading] =
   <img
     src={m.image}
     alt="attachment"
-    onClick={() => setPreviewImage(m.image)}
+    onClick={() => {
+
+  const allImages = messages
+    .filter((msg) => msg.image)
+    .map((msg) => msg.image);
+
+  const clickedIndex =
+    allImages.indexOf(m.image);
+
+  setPreviewImages(allImages);
+
+  setPreviewIndex(clickedIndex);
+
+  setShowViewer(true);
+}}
     className="max-w-[220px] rounded-2xl object-cover shadow cursor-pointer hover:opacity-95"
   />
 
@@ -902,30 +1069,79 @@ const [uploading, setUploading] =
 )}
 
   </div>
-{previewImage && (
-  <div
-    className="fixed inset-0 z-[999] bg-black/90 flex items-center justify-center p-4"
-    onClick={() => setPreviewImage(null)}
-  >
+{showViewer && (
+  <div className="fixed inset-0 z-[999] bg-black/90 flex flex-col">
 
-    <button
-      className="absolute top-4 right-4 text-white text-3xl"
-      onClick={() => setPreviewImage(null)}
-    >
-      ✕
-    </button>
+    {/* TOP */}
+    <div className="flex justify-end p-4">
 
-    <img
-      src={previewImage}
-      alt="preview"
-      className="max-w-full max-h-full rounded-xl"
-      onClick={(e) => e.stopPropagation()}
-    />
+      <button
+        className="text-white text-3xl"
+        onClick={() => setShowViewer(false)}
+      >
+        ✕
+      </button>
+
+    </div>
+
+    {/* IMAGE */}
+    <div className="flex-1 flex items-center justify-center relative px-6">
+
+      {previewIndex > 0 && (
+        <button
+          onClick={() =>
+            setPreviewIndex((prev) => prev - 1)
+          }
+          className="absolute left-4 text-white text-5xl"
+        >
+          ‹
+        </button>
+      )}
+
+      <img
+        src={previewImages[previewIndex]}
+        alt="preview"
+        className="max-h-[75vh] max-w-full object-contain rounded-xl"
+      />
+
+      {previewIndex < previewImages.length - 1 && (
+        <button
+          onClick={() =>
+            setPreviewIndex((prev) => prev + 1)
+          }
+          className="absolute right-4 text-white text-5xl"
+        >
+          ›
+        </button>
+      )}
+
+    </div>
+
+    {/* THUMBNAILS */}
+    <div className="flex gap-2 overflow-x-auto p-4 justify-center">
+
+      {previewImages.map((img, index) => (
+
+        <img
+          key={index}
+          src={img}
+          onClick={() => setPreviewIndex(index)}
+          className={`w-16 h-16 object-cover rounded cursor-pointer border-2 transition ${
+            previewIndex === index
+              ? 'border-white'
+              : 'border-transparent opacity-60'
+          }`}
+        />
+
+      ))}
+
+    </div>
 
   </div>
 )}
-
+ 
 </MainLayout>
     </ProtectedRoute>
   );
 }
+  
