@@ -704,7 +704,7 @@ export function InventoryTable({
     return sorted
   }, [groupedProducts, sortMode])
   
-const filteredProducts = sortedProducts.filter(group => group.stockLeft > 0)
+const filteredProducts = sortedProducts
   const dataLength = filteredProducts.length
   const totalPages = Math.max(1, Math.ceil(dataLength / itemsPerPage))
   const paginatedGroups = useMemo(() => {

@@ -27,6 +27,7 @@ import { ReceiptView } from "./receipt-view"
 import { AuthLoadingSkeleton } from "@/components/skeletons/dashboard-skeleton"
 import { useAuth } from "@/hooks/use-auth"
 import { updateOrderStatus, syncEncoderStatusToOrder } from "@/lib/order-utils"
+import { logActivity } from "@/lib/activity-logger"
 
 // ─── Helpers ───
 const parseDate = (d: any): Date | null => {
@@ -131,6 +132,19 @@ export function OrderDetails({ orderId }: OrderDetailsProps) {
       const db = getFirebaseDb()
       await updateDoc(doc(db, "orders", orderId), { [field]: value })
       toast.success("Order details saved")
+
+      // LOG ACTIVITY
+      logActivity({
+        type: field === "salesInvoiceNo" ? "invoice_updated" : "receipt_updated",
+        message: `Updated ${field === "salesInvoiceNo" ? "sales invoice" : "delivery receipt"} to ${value}`,
+        performedBy: (user as any)?.name || (user as any)?.displayName || user?.email || "Sales",
+        role: "sales",
+        orderId: orderId,
+        customerName: order?.shippingAddress?.fullName || order?.customerName || "N/A",
+        metadata: {
+          [field]: value
+        }
+      });
     } catch (error: any) {
       toast.error("Failed to save: " + error.message)
     }
@@ -191,7 +205,7 @@ export function OrderDetails({ orderId }: OrderDetailsProps) {
         // STEP 3: Create encoder task
         await addDoc(encoderTasksRef, {
           orderId: orderId,
-          customerName: order.shippingAddress?.fullName || order.customerName || "N/A",
+          customerName: order?.shippingAddress?.fullName || order?.customerName || "N/A",
           items: safeItems,
           salesInvoiceNo: invoiceNo,
           deliveryReceiptNo: receiptNo,
@@ -227,6 +241,21 @@ export function OrderDetails({ orderId }: OrderDetailsProps) {
 
         console.log("✅ Encoder task created");
         toast.success("Order confirmed and sent to Encoder");
+
+        // LOG ACTIVITY
+        console.log("About to log activity")
+        logActivity({
+          type: "order_confirmed",
+          message: `Confirmed order #${orderId.slice(-6).toUpperCase()}`,
+          performedBy: (user as any)?.name || (user as any)?.displayName || user?.email || "Sales",
+          role: "sales",
+          orderId: orderId,
+          customerName: order?.shippingAddress?.fullName || order?.customerName || "N/A",
+          metadata: {
+            salesInvoiceNo: invoiceNo,
+            deliveryReceiptNo: receiptNo
+          }
+        });
       } else {
         console.log("⚠️ Encoder task already exists");
         toast.success("Order marked as ready (Encoder task already exists)");
@@ -254,6 +283,22 @@ export function OrderDetails({ orderId }: OrderDetailsProps) {
          await updateOrderStatus(orderId, confirmAction);
       }
       toast.success(`Order marked as ${confirmAction}`);
+
+      // LOG ACTIVITY
+      console.log("About to log activity")
+      logActivity({
+        type: confirmAction === "cancelled" ? "cancelled_order" : "status_updated",
+        message: confirmAction === "cancelled" 
+          ? `Cancelled order #${orderId.slice(-6).toUpperCase()}` 
+          : `Updated order #${orderId.slice(-6).toUpperCase()} to ${confirmAction}`,
+        performedBy: (user as any)?.name || (user as any)?.displayName || user?.email || "Sales",
+        role: "sales",
+        orderId: orderId,
+        customerName: order?.shippingAddress?.fullName || order?.customerName || "N/A",
+        metadata: {
+          newStatus: confirmAction
+        }
+      });
     } catch (error: any) {
       toast.error("Failed: " + error.message);
     } finally {

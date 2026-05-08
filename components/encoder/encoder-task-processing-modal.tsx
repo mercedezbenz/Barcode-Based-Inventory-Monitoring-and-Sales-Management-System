@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { syncEncoderStatusToOrder } from "@/lib/order-utils"
+import { logActivity } from "@/lib/activity-logger"
 
 
 interface EncoderTaskProcessingModalProps {
@@ -219,6 +220,17 @@ export function EncoderTaskProcessingModal({ task, isOpen, onClose }: EncoderTas
       }
 
       toast.success("Selection confirmed! Task moved to Verification tab.")
+      
+      // LOG ACTIVITY
+      logActivity({
+        type: "stock_selected",
+        message: `Selected stock for order #${linkedId.slice(-6).toUpperCase()}`,
+        performedBy: auth.currentUser?.displayName || auth.currentUser?.email || "Encoder",
+        role: "encoder",
+        orderId: linkedId,
+        customerName: task.customerName || "N/A",
+      });
+
       onClose() // Close the modal so it appears in the next tab
 
     } catch (error: any) {
@@ -400,6 +412,20 @@ export function EncoderTaskProcessingModal({ task, isOpen, onClose }: EncoderTas
       } catch {}
 
       toast.success(`✔ Verified & deducted ${deductionWeight.toFixed(1)}kg for ${productName}`)
+
+      // LOG ACTIVITY
+      logActivity({
+        type: "barcode_scan",
+        message: `Scanned ${deductionWeight.toFixed(1)}kg of ${productName} (Barcode: ${code})`,
+        performedBy: auth.currentUser?.displayName || auth.currentUser?.email || "Encoder",
+        role: "encoder",
+        orderId: task.orderId || task.linkedOrderId || task.id,
+        customerName: task.customerName || "N/A",
+        metadata: {
+          productName: productName,
+          barcode: code
+        }
+      });
 
       // ── 8. CHECK COMPLETION ────────────────────────────────────────────
       const allDone = newState.every((b: any) => b.scanned === true)

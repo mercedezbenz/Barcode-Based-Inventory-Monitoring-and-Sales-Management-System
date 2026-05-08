@@ -1,4 +1,4 @@
-import { BarChart3, Package, FileText, ShoppingCart, KeyRound, FileBarChart2, TrendingUp } from "lucide-react"
+import { BarChart3, Package, FileText, ShoppingCart, KeyRound, FileBarChart2, TrendingUp, Activity } from "lucide-react"
 import { MessageCircle } from "lucide-react"
 /**
  * Centralized role-based access configuration.
@@ -45,10 +45,10 @@ export const MENU_ITEMS: MenuItem[] = [
     roles: ["admin", "encoder"],
   },
   {
-    label: "Reports",
+    label: "Encoder Reports",
     href: "/encoder/reports",
     icon: FileBarChart2,
-    roles: ["admin", "encoder"],
+    roles: ["admin", "encoder","owner"],
   },
 
   // ✅ NEW
@@ -62,13 +62,19 @@ export const MENU_ITEMS: MenuItem[] = [
     label: "Sales Reports",
     href: "/orders/reports",
     icon: TrendingUp,
-    roles: ["sales",]
+    roles: ["sales","owner"]
   },
   {
     label: "Products",
     href: "/products",
     icon: Package, 
     roles: ["sales"], 
+  },
+  {
+    label: "Activity Logs",
+    href: "/owner/activity-logs",
+    icon: Activity,
+    roles: ["owner",]
   },
 ]
 
@@ -86,11 +92,12 @@ export const ROUTE_ACCESS: Record<string, AppRole[]> = {
   "/orders":     ["sales"],
   "/orders/reports": ["sales", "admin", "owner"],
   "/encoder":    ["admin", "encoder"],
-  "/encoder/reports": ["admin", "encoder"],
+  "/encoder/reports": ["admin", "encoder", "owner"],
 
   // ✅ NEW
   "/messages":   ["sales"],
   "/products":   ["sales"], 
+  "/owner/activity-logs": ["admin", "owner"],
 }
 
 /**

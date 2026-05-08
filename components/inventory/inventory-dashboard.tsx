@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Package, TrendingUp, TrendingDown, AlertTriangle, Search, X, Plus, ArrowDownUp, Clock, PackageMinus, ScanLine, Tag, RotateCcw, Filter, CalendarClock, Layers, Archive } from "lucide-react"
-import { TodaysMovementIcon, StockOverviewIcon, ReturnsSummaryIcon, FastMovingIcon, ExpiryAlertIcon, LowStockAlertIcon, OutOfStockIcon } from "./inventory-icons"
+import { TodaysMovementIcon, StockOverviewIcon, ReturnsSummaryIcon, FastMovingIcon, ExpiryAlertIcon, LowStockAlertIcon } from "./inventory-icons"
 import { Button } from "@/components/ui/button"
 import { InventoryTable } from "./inventory-table"
 import { AddItemDialog } from "./add-item-dialog"
@@ -38,7 +38,7 @@ const STOCK_STATUS_OPTIONS = [
   { value: "all", label: "All Status" },
   { value: "in-stock", label: "In Stock" },
   { value: "low-stock", label: "Low Stock" },
-  { value: "out-of-stock", label: "Out of Stock" },
+  { value: "returns-summary", label: "Returns Summary" },
   { value: "archived", label: "Archived" },
 ]
 
@@ -103,8 +103,8 @@ export function getItemStatus(item: any): Exclude<ItemStatus, "all"> {
     } catch { /* ignore */ }
   }
 
-  if (weightLeft === 0) return "out-of-stock"
-  if (weightLeft < 50) return "low-stock"
+  if (weightLeft <= 0) return "out-of-stock"
+  if (weightLeft <= 50) return "low-stock"
   return "in-stock"
 }
 
@@ -282,44 +282,21 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
     setSearchQuery("")
     setDebouncedSearch("")
     setSelectedProductFilter(null)
+    setStockStatusFilter("all")
+    setExpirationFilter("all")
+    setRecentlyAddedFilter("all")
     clearQueryParam()
 
-    switch (cardType) {
-      case "total-items":
-        setStockStatusFilter("all")
-        setExpirationFilter("all")
-        setRecentlyAddedFilter("all")
-        break
-      case "low-stock":
-        setStockStatusFilter("low-stock")
-        setExpirationFilter("all")
-        setRecentlyAddedFilter("all")
-        break
-      case "expiring-soon":
-        setStockStatusFilter("all")
-        setExpirationFilter("expiring-soon")
-        setRecentlyAddedFilter("all")
-        break
-      case "out-of-stock":
-        setStockStatusFilter("out-of-stock")
-        setExpirationFilter("all")
-        setRecentlyAddedFilter("all")
-        break
-      case "today-transactions":
-        setStockStatusFilter("all")
-        setExpirationFilter("all")
-        setRecentlyAddedFilter("today")
-        break
-      case "returns-summary":
-        setStockStatusFilter("all")
-        setExpirationFilter("all")
-        setRecentlyAddedFilter("today")
-        break
-    }
-
-    setActiveCardFilter(cardType)
-    scrollToInventoryTable()
-  }, [scrollToInventoryTable, clearQueryParam])
+    setActiveCardFilter(cardType === "total-items" ? null : cardType)
+    
+    // Smooth scroll to table section
+    setTimeout(() => {
+      document.getElementById("inventory-table-section")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      })
+    }, 100)
+  }, [clearQueryParam])
 
   // Filter label for active card
   const getFilterLabel = useCallback((filter: string) => {
@@ -327,7 +304,6 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
       case "total-items": return "All Inventory Items"
       case "low-stock": return "Low Stock Items (< 50 kg)"
       case "expiring-soon": return "Expiring Soon Items"
-      case "out-of-stock": return "Out of Stock Items"
       case "today-transactions": return "Today's Transactions"
       case "returns-summary": return "Today's Returns"
       default: return "Filtered View"
@@ -535,6 +511,50 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
     const recentlyCutoff = getRecentlyCutoff(recentlyAddedFilter)
 
     const filtered = items.filter((item) => {
+      // --- Active Card Filters ---
+      if (activeCardFilter) {
+        const incomingWeight = (item as any).incoming_weight ?? (item as any).production_weight ?? 0;
+        const outgoingWeight = (item as any).outgoing_weight ?? 0;
+        const goodReturnWeight = (item as any).good_return_weight ?? 0;
+        const damageReturnWeight = (item as any).damage_return_weight ?? 0;
+        const weightLeft = incomingWeight - outgoingWeight + goodReturnWeight - damageReturnWeight;
+
+        if (activeCardFilter === "low-stock") {
+          if (weightLeft <= 0 || weightLeft > 50) return false;
+        } else if (activeCardFilter === "expiring-soon") {
+          if (!item.expirationDate) return false;
+          const expiryDate = new Date(item.expirationDate);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          expiryDate.setHours(0, 0, 0, 0);
+          const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysUntilExpiry > 30 || daysUntilExpiry < 0) return false;
+        } else if (activeCardFilter === "returns-summary") {
+          if (goodReturnWeight <= 0 && damageReturnWeight <= 0) return false;
+        } else if (activeCardFilter === "today-transactions") {
+          const todayStart = new Date();
+          todayStart.setHours(0, 0, 0, 0);
+          const todayEnd = new Date();
+          todayEnd.setHours(23, 59, 59, 999);
+          
+          // Check if this item's barcode exists in today's transactions
+          const hasTransactionToday = transactions.some(txn => {
+            if (txn.barcode !== item.barcode) return false;
+            const txDate = txn.transaction_date instanceof Date
+              ? txn.transaction_date
+              : (txn.transaction_date as any)?.toDate ? (txn.transaction_date as any).toDate()
+                : new Date(txn.transaction_date || 0);
+            if (isNaN(txDate.getTime()) || txDate < todayStart || txDate > todayEnd) return false;
+            
+            const incoming = txn.incoming_weight ?? txn.production_weight ?? 0;
+            const outgoing = txn.outgoing_weight ?? 0;
+            return incoming > 0 || outgoing > 0;
+          });
+          
+          if (!hasTransactionToday) return false;
+        }
+      }
+
       // Category filter — match item.category against selected category
       if (selectedCategory !== "all") {
         const itemCategory = (item.category || "").trim()
@@ -619,13 +639,33 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
     })
 
     return filtered // Sorting is now handled by sortMode
-  }, [items, selectedCategory, selectedType, debouncedSearch, stockStatusFilter, expirationFilter, recentlyAddedFilter, selectedProductFilter])
+  }, [items, selectedCategory, selectedType, debouncedSearch, stockStatusFilter, expirationFilter, recentlyAddedFilter, selectedProductFilter, activeCardFilter, transactions])
 
   // Filter transactions for the table display (one row per transaction)
   const filteredTransactions = useMemo(() => {
+    // Determine the barcodes of items that passed the item-level filters
+    // This correctly propagates the active card filter (e.g. Low Stock, Out of Stock) to the table
+    const validBarcodes = new Set(filteredItems.map(i => i.barcode).filter(Boolean));
+
     const recentlyCutoff = getRecentlyCutoff(recentlyAddedFilter)
 
     const filtered = transactions.filter((txn) => {
+      // Synchronize transactions with filtered items
+      if (txn.barcode && !validBarcodes.has(txn.barcode)) return false;
+
+      // Ensure that if "today-transactions" is active, we ONLY show transactions from today
+      if (activeCardFilter === "today-transactions") {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayEnd = new Date();
+        todayEnd.setHours(23, 59, 59, 999);
+        const txDate = txn.transaction_date instanceof Date
+          ? txn.transaction_date
+          : (txn.transaction_date as any)?.toDate ? (txn.transaction_date as any).toDate()
+            : new Date(txn.transaction_date || 0);
+        if (isNaN(txDate.getTime()) || txDate < todayStart || txDate > todayEnd) return false;
+      }
+
       // Category filter
       if (selectedCategory !== "all") {
         if ((txn.category || "").trim().toLowerCase() !== selectedCategory.toLowerCase()) return false
@@ -664,7 +704,7 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
     })
 
     return filtered // Sorting handled by sortMode in the table
-  }, [transactions, items, selectedCategory, selectedType, debouncedSearch, recentlyAddedFilter, stockStatusFilter])
+  }, [transactions, filteredItems, selectedCategory, selectedType, debouncedSearch, recentlyAddedFilter, stockStatusFilter])
 
   console.log("[Inventory Dashboard] Total items:", items.length, "Filtered items:", filteredItems.length, "Category:", selectedCategory, "Type:", selectedType, "Search:", debouncedSearch)
 
@@ -682,13 +722,15 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
   // totalStockWeight is calculated above and used for the main KPI display
 
   // Filter low stock items count
-  const lowStockItems = filteredItems.filter((item) => {
+  const lowStockItems = items.filter((item) => {
+    const isArchived = Boolean((item as any).isArchived)
+    if (isArchived) return false
     const incomingWeight = (item as any).incoming_weight ?? (item as any).production_weight ?? 0
     const outgoingWeight = (item as any).outgoing_weight ?? 0
     const goodReturnWeight = (item as any).good_return_weight ?? 0
     const damageReturnWeight = (item as any).damage_return_weight ?? 0
     const weightLeft = incomingWeight - outgoingWeight + goodReturnWeight - damageReturnWeight
-    return weightLeft > 0 && weightLeft < 50 // Below 50kg threshold
+    return weightLeft > 0 && weightLeft <= 50 // Below or equal 50kg threshold
   }).length
 
   const nearExpiryItems = filteredItems.filter((item) => {
@@ -708,17 +750,7 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
     return daysUntilExpiry <= 7 && daysUntilExpiry >= 0
   }).length
 
-  // Count out-of-stock items (zero remaining weight)
-  const outOfStockItems = items.filter((item) => {
-    const isArchived = Boolean((item as any).isArchived)
-    if (isArchived) return false
-    const incomingWeight = (item as any).incoming_weight ?? (item as any).production_weight ?? 0
-    const outgoingWeight = (item as any).outgoing_weight ?? 0
-    const goodReturnWeight = (item as any).good_return_weight ?? 0
-    const damageReturnWeight = (item as any).damage_return_weight ?? 0
-    const weightLeft = incomingWeight - outgoingWeight + goodReturnWeight - damageReturnWeight
-    return weightLeft <= 0
-  }).length
+  // Count out-of-stock items is removed
 
   // Count expiring-soon items (within 30 days, for card display)
   const expiringSoonItems = items.filter((item) => {
@@ -733,6 +765,8 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
     if (weightLeft <= 0) return false
     const expiryDate = new Date(item.expirationDate)
     const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    expiryDate.setHours(0, 0, 0, 0)
     const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     return daysUntilExpiry <= 30 && daysUntilExpiry >= 0
   }).length
@@ -949,15 +983,18 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
         </div>
 
         {!isArchiveView && (
-        <div className="grid gap-2.5 sm:gap-4 md:gap-5 grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid gap-2.5 sm:gap-4 md:gap-5 grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {/* ── 1. Today's Transactions ── */}
           <Card
-            className={`group/card shadow-sm transition-all duration-300 cursor-pointer rounded-xl bg-white dark:bg-card hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.98] ${
-              activeCardFilter === "today-transactions"
-                ? "ring-2 ring-indigo-500 dark:ring-indigo-400 ring-offset-2 dark:ring-offset-gray-900 shadow-indigo-100 dark:shadow-indigo-900/20"
-                : "hover:shadow-md"
+            className={`group/card shadow-sm transition-all duration-300 rounded-xl bg-white dark:bg-card ${
+              todayTransactions.total > 0
+                ? "cursor-pointer hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] " +
+                  (activeCardFilter === "today-transactions"
+                    ? "ring-2 ring-indigo-500 dark:ring-indigo-400 ring-offset-2 dark:ring-offset-gray-900 shadow-indigo-100 dark:shadow-indigo-900/20 bg-indigo-50/50 dark:bg-indigo-900/10"
+                    : "hover:shadow-md hover:-translate-y-0.5")
+                : "cursor-default"
             }`}
-            onClick={() => handleCardClick("today-transactions")}
+            onClick={() => { if (todayTransactions.total > 0) handleCardClick("today-transactions") }}
             title="Click to view today's inventory movements"
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
@@ -984,12 +1021,15 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
 
           {/* ── 2. Total Items ── */}
           <Card
-            className={`group/card shadow-sm transition-all duration-300 cursor-pointer rounded-xl bg-white dark:bg-card hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.98] ${
-              activeCardFilter === "total-items"
-                ? "ring-2 ring-blue-500 dark:ring-blue-400 ring-offset-2 dark:ring-offset-gray-900 shadow-blue-100 dark:shadow-blue-900/20"
-                : "hover:shadow-md"
+            className={`group/card shadow-sm transition-all duration-300 rounded-xl bg-white dark:bg-card ${
+              totalItems > 0
+                ? "cursor-pointer hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] " +
+                  (activeCardFilter === "total-items"
+                    ? "ring-2 ring-blue-500 dark:ring-blue-400 ring-offset-2 dark:ring-offset-gray-900 shadow-blue-100 dark:shadow-blue-900/20 bg-blue-50/50 dark:bg-blue-900/10"
+                    : "hover:shadow-md hover:-translate-y-0.5")
+                : "cursor-default"
             }`}
-            onClick={() => handleCardClick("total-items")}
+            onClick={() => { if (totalItems > 0) handleCardClick("total-items") }}
             title="Click to view all inventory items"
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
@@ -1006,12 +1046,15 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
 
           {/* ── 3. Low Stock ── */}
           <Card
-            className={`group/card shadow-sm transition-all duration-300 cursor-pointer rounded-xl bg-white dark:bg-card hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.98] ${
-              activeCardFilter === "low-stock"
-                ? "ring-2 ring-orange-500 dark:ring-orange-400 ring-offset-2 dark:ring-offset-gray-900 shadow-orange-100 dark:shadow-orange-900/20"
-                : "hover:shadow-md"
+            className={`group/card shadow-sm transition-all duration-300 rounded-xl bg-white dark:bg-card ${
+              lowStockItems > 0
+                ? "cursor-pointer hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] " +
+                  (activeCardFilter === "low-stock"
+                    ? "ring-2 ring-orange-500 dark:ring-orange-400 ring-offset-2 dark:ring-offset-gray-900 shadow-orange-100 dark:shadow-orange-900/20 bg-orange-50/50 dark:bg-orange-900/10"
+                    : "hover:shadow-md hover:-translate-y-0.5")
+                : "cursor-default"
             }`}
-            onClick={() => handleCardClick("low-stock")}
+            onClick={() => { if (lowStockItems > 0) handleCardClick("low-stock") }}
             title="Click to view low stock items"
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
@@ -1035,12 +1078,15 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
 
           {/* ── 4. Expiring Soon ── */}
           <Card
-            className={`group/card shadow-sm transition-all duration-300 cursor-pointer rounded-xl bg-white dark:bg-card hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.98] ${
-              activeCardFilter === "expiring-soon"
-                ? "ring-2 ring-purple-500 dark:ring-purple-400 ring-offset-2 dark:ring-offset-gray-900 shadow-purple-100 dark:shadow-purple-900/20"
-                : "hover:shadow-md"
+            className={`group/card shadow-sm transition-all duration-300 rounded-xl bg-white dark:bg-card ${
+              expiringSoonItems > 0
+                ? "cursor-pointer hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] " +
+                  (activeCardFilter === "expiring-soon"
+                    ? "ring-2 ring-purple-500 dark:ring-purple-400 ring-offset-2 dark:ring-offset-gray-900 shadow-purple-100 dark:shadow-purple-900/20 bg-purple-50/50 dark:bg-purple-900/10"
+                    : "hover:shadow-md hover:-translate-y-0.5")
+                : "cursor-default"
             }`}
-            onClick={() => handleCardClick("expiring-soon")}
+            onClick={() => { if (expiringSoonItems > 0) handleCardClick("expiring-soon") }}
             title="Click to view expiring items"
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
@@ -1056,49 +1102,25 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
               ) : (
                 <>
                   <div className="text-2xl sm:text-3xl font-bold tracking-tight text-purple-600 dark:text-purple-400">{expiringSoonItems} items</div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Within 30 days</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Within 7 days</p>
                 </>
               )}
             </CardContent>
           </Card>
 
-          {/* ── 5. Out of Stock ── */}
-          <Card
-            className={`group/card shadow-sm transition-all duration-300 cursor-pointer rounded-xl bg-white dark:bg-card hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.98] ${
-              activeCardFilter === "out-of-stock"
-                ? "ring-2 ring-red-500 dark:ring-red-400 ring-offset-2 dark:ring-offset-gray-900 shadow-red-100 dark:shadow-red-900/20"
-                : "hover:shadow-md"
-            }`}
-            onClick={() => handleCardClick("out-of-stock")}
-            title="Click to view out of stock items"
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-              <CardTitle className="text-[11px] sm:text-sm font-medium text-red-600 dark:text-red-400 group-hover/card:text-red-700 dark:group-hover/card:text-red-300 transition-colors">Out of Stock</CardTitle>
-              <OutOfStockIcon />
-            </CardHeader>
-            <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-              {outOfStockItems === 0 ? (
-                <>
-                  <div className="text-2xl sm:text-3xl font-bold text-green-600 dark:text-green-400">✔</div>
-                  <p className="text-[10px] sm:text-xs text-green-600 mt-1">All items in stock</p>
-                </>
-              ) : (
-                <>
-                  <div className="text-2xl sm:text-3xl font-bold tracking-tight text-red-600 dark:text-red-400">{outOfStockItems} items</div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Zero remaining</p>
-                </>
-              )}
-            </CardContent>
-          </Card>
+
 
           {/* ── 6. Returns Summary ── */}
           <Card
-            className={`group/card shadow-sm transition-all duration-300 cursor-pointer rounded-xl bg-white dark:bg-card hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.98] ${
-              activeCardFilter === "returns-summary"
-                ? "ring-2 ring-teal-500 dark:ring-teal-400 ring-offset-2 dark:ring-offset-gray-900 shadow-teal-100 dark:shadow-teal-900/20"
-                : "hover:shadow-md"
+            className={`group/card shadow-sm transition-all duration-300 rounded-xl bg-white dark:bg-card ${
+              todayReturns.total > 0
+                ? "cursor-pointer hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] " +
+                  (activeCardFilter === "returns-summary"
+                    ? "ring-2 ring-teal-500 dark:ring-teal-400 ring-offset-2 dark:ring-offset-gray-900 shadow-teal-100 dark:shadow-teal-900/20 bg-teal-50/50 dark:bg-teal-900/10"
+                    : "hover:shadow-md hover:-translate-y-0.5")
+                : "cursor-default"
             }`}
-            onClick={() => handleCardClick("returns-summary")}
+            onClick={() => { if (todayReturns.total > 0) handleCardClick("returns-summary") }}
             title="Click to view today's return records"
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">

@@ -38,6 +38,8 @@ import {
   FifoWarningDialog,
   type FifoCheckResult,
 } from "./fifo-warning-dialog"
+import { useAuth } from "@/hooks/use-auth"
+import { logActivity } from "@/lib/activity-logger"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -364,6 +366,7 @@ export function ScanItemDialog({
   initialBarcode,
   onInitialBarcodeConsumed,
 }: ScanItemDialogProps) {
+  const { user } = useAuth()
   const inputRef = useRef<HTMLInputElement>(null)
   const [barcodeValue, setBarcodeValue] = useState("")
   const [scanState, setScanState] = useState<ScanState>("idle")
@@ -414,6 +417,18 @@ export function ScanItemDialog({
         if (match) {
           setScanState("found")
           setFoundItem(match)
+          
+          console.log("About to log activity")
+          logActivity({
+            type: "barcode_scanned",
+            message: `Scanned barcode: ${trimmed}`,
+            performedBy: user?.email || "Unknown User",
+            role: "encoder",
+            metadata: {
+              barcode: trimmed,
+              productName: getProductName(match),
+            },
+          }).catch(err => console.error("Activity logging error:", err))
         } else {
           setScanState("not-found")
           setFoundItem(null)

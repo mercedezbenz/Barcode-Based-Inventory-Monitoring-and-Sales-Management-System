@@ -46,6 +46,7 @@ import {
 } from "@/services/firebase-service"
 import type { InventoryItem } from "@/lib/types"
 import { performFifoCheck } from "./fifo-warning-dialog"
+import { logActivity } from "@/lib/activity-logger"
 
 // ---
 // Types
@@ -673,6 +674,21 @@ export function OutgoingStockDialog({
         source: "delivery",
         created_at: new Date(),
       } as any)
+
+      // 3. Log Activity
+      console.log("About to log activity")
+      await logActivity({
+        type: "stock_updated",
+        message: `Updated stock for ${txnProductName} (-${weightNum}kg)`,
+        performedBy: user.email || "Unknown User",
+        role: "encoder",
+        metadata: {
+          productName: txnProductName,
+          previousKg: stockLeft,
+          updatedKg: newWeightLeft,
+          deductedKg: weightNum,
+        },
+      })
 
       toast.success("Success", {
         description: "Product successfully released (stock out).",

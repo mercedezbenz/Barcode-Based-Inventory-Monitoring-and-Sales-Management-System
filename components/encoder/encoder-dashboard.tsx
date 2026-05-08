@@ -7,7 +7,8 @@ import { Search, FileText, CheckCircle2, Factory } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { EncoderTaskProcessingModal } from "./encoder-task-processing-modal"
 import { syncEncoderStatusToOrder } from "@/lib/order-utils"
-import { getFirebaseDb } from "@/lib/firebase-live"
+import { getFirebaseDb, auth } from "@/lib/firebase-live"
+import { logActivity } from "@/lib/activity-logger"
 
 const formatCurrency = (amount: number): string =>
   `₱${amount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -129,6 +130,16 @@ export function EncoderDashboard() {
       const { toast } = await import("sonner")
       toast.success("Order dispatched for delivery!")
       
+      // LOG ACTIVITY
+      logActivity({
+        type: "on_delivery",
+        message: `Marked order #${linkedId.slice(-6).toUpperCase()} as On Delivery`,
+        performedBy: auth.currentUser?.displayName || auth.currentUser?.email || "Encoder",
+        role: "encoder",
+        orderId: linkedId,
+        customerName: order.customerName || "N/A",
+      });
+      
     } catch (err: any) {
       console.error(`[Encoder] ❌ handleMarkOnDelivery failed:`, err?.message || err)
       const { toast } = await import("sonner")
@@ -176,6 +187,16 @@ export function EncoderDashboard() {
       
       const { toast } = await import("sonner")
       toast.success("Order marked as delivered!")
+
+      // LOG ACTIVITY
+      logActivity({
+        type: "completed_order",
+        message: `Marked order #${linkedId.slice(-6).toUpperCase()} as Delivered/Completed`,
+        performedBy: auth.currentUser?.displayName || auth.currentUser?.email || "Encoder",
+        role: "encoder",
+        orderId: linkedId,
+        customerName: order.customerName || "N/A",
+      });
       
     } catch (err: any) {
       console.error(`[Encoder] ❌ handleDeliverOrder failed:`, err?.message || err)

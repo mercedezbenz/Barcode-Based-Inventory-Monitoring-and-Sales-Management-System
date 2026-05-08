@@ -2,13 +2,13 @@
 
 import { MainLayout } from "@/components/layout/main-layout"
 import { ProtectedRoute } from "@/components/auth/protected-route"
-import { EncoderReports } from "@/components/encoder/encoder-reports"
+import { ActivityDashboard } from "@/components/owner/activity-dashboard"
 
-export default function EncoderReportsPage() {
+export default function ActivityLogsPage() {
   return (
-    <ProtectedRoute allowedRoles={["admin", "encoder", "owner"]}>
+    <ProtectedRoute allowedRoles={["admin", "owner"]}>
       <MainLayout>
-        <EncoderReports />
+        <ActivityDashboard />
       </MainLayout>
     </ProtectedRoute>
   )

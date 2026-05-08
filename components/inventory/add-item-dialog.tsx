@@ -56,6 +56,7 @@ import {
   buildProductDisplayName,
   type ProductEntry,
 } from "@/lib/product-data"
+import { logActivity } from "@/lib/activity-logger"
 
 interface AddItemDialogProps {
   open: boolean
@@ -664,6 +665,20 @@ export function AddItemDialog({ open, onOpenChange, scannedItem }: AddItemDialog
         packing_weight: packW,
         weight_difference: weightDiff,
       } as any)
+
+      // Log Activity
+      console.log("About to log activity")
+      await logActivity({
+        type: "inventory_added",
+        message: `Added new inventory item: ${autoProductName || formData.category}`,
+        performedBy: user?.email || "Unknown User",
+        role: "encoder",
+        metadata: {
+          productName: autoProductName || formData.category,
+          barcode: formData.barcode.trim(),
+          addedKg: weight,
+        },
+      })
 
       toast.success("Success", {
         description: "Item successfully added to inventory.",

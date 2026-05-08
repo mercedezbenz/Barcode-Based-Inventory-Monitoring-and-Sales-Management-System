@@ -154,6 +154,11 @@ service cloud.firestore {
       allow write: if isAuthed();
     }
 
+    // ---- ACTIVITY LOGS ----
+    match /activity_logs/{logId} {
+      allow read, write: if true;
+    }
+
     // Deny everything else by default
     match /{document=**} {
       allow read, write: if false;

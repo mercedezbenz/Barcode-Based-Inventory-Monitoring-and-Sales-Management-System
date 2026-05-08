@@ -2,6 +2,8 @@
 
 import { useState, useRef } from "react"
 import { useSalesReports, computeTotalKg, computeTotalAmount, computeProductSummary } from "@/hooks/useSalesReports"
+import { auth } from "@/lib/firebase-live"
+import { logActivity } from "@/lib/activity-logger"
 import { AuthLoadingSkeleton } from "@/components/skeletons/dashboard-skeleton"
 import {
   Search, FileText, Calendar, Download, Printer, RotateCcw,
@@ -83,6 +85,15 @@ doc.text(`Total Revenue: PHP ${summary.totalRevenue.toFixed(2)}`, 14, 42)
   })
 
   doc.save(`DecktaGo_Sales_Report_${new Date().toISOString().slice(0, 10)}.pdf`)
+  
+  if (auth.currentUser) {
+    logActivity({
+      type: "reports exported",
+      message: `Exported Sales Report PDF with ${allOrders.length} orders`,
+      performedBy: auth.currentUser.displayName || auth.currentUser.email || "Owner/Admin",
+      role: "owner"
+    })
+  }
 }
 
 // ─── Status Badge Component ──────────────────────────────────────────────────

@@ -162,98 +162,6 @@ export function EncoderReports() {
         </div>
       </div>
 
-      {/* ── Filter Section ──────────────────────────────────────────────── */}
-      <div className="bg-white dark:bg-card border border-gray-100 dark:border-border rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
-        <div className="flex flex-wrap items-end gap-3">
-          {/* Category filter */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Category</label>
-            <div className="relative">
-              <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-              <select
-                value={categoryFilter}
-                onChange={(e) => { setCategoryFilter(e.target.value as MeatCategory); setPage(1) }}
-                className={`pl-8 pr-8 py-2 bg-gray-50 dark:bg-secondary/30 border rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500/20 cursor-pointer transition-all duration-200 appearance-none w-[170px] ${
-                  categoryFilter !== "all"
-                    ? "border-sky-300 bg-sky-50/50 text-sky-700 dark:border-sky-700 dark:bg-sky-950/30 dark:text-sky-400"
-                    : "border-gray-200 dark:border-border text-gray-700 dark:text-foreground"
-                }`}
-              >
-                {MEAT_CATEGORIES.map((cat) => (
-                  <option key={cat.value} value={cat.value}>{cat.label}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
-
-          {/* Date pickers */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Start Date</label>
-            <div className="relative">
-              <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-              <input
-                type="date"
-                value={formatDate(startDate)}
-                onChange={(e) => { setStartDate(e.target.value ? new Date(e.target.value + "T00:00:00") : null); setPage(1) }}
-                className="pl-8 pr-3 py-2 bg-gray-50 dark:bg-secondary/30 border border-gray-200 dark:border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all text-gray-800 dark:text-foreground w-[160px]"
-              />
-            </div>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">End Date</label>
-            <div className="relative">
-              <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-              <input
-                type="date"
-                value={formatDate(endDate)}
-                onChange={(e) => { setEndDate(e.target.value ? new Date(e.target.value + "T23:59:59") : null); setPage(1) }}
-                className="pl-8 pr-3 py-2 bg-gray-50 dark:bg-secondary/30 border border-gray-200 dark:border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all text-gray-800 dark:text-foreground w-[160px]"
-              />
-            </div>
-          </div>
-
-          {/* Quick filters */}
-          <div className="flex items-end gap-1.5">
-            <Button size="sm" variant="outline" className="text-xs h-[38px] font-semibold rounded-xl hover:shadow-sm transition-all duration-200" onClick={setToday}>Today</Button>
-            <Button size="sm" variant="outline" className="text-xs h-[38px] font-semibold rounded-xl hover:shadow-sm transition-all duration-200" onClick={setThisWeek}>This Week</Button>
-            <Button size="sm" variant="outline" className="text-xs h-[38px] font-semibold rounded-xl hover:shadow-sm transition-all duration-200" onClick={setThisMonth}>This Month</Button>
-          </div>
-
-          <div className="flex items-end gap-1.5 ml-auto">
-            <Button size="sm" variant="ghost" className="text-xs h-[38px] gap-1.5 text-gray-500" onClick={resetFilters}>
-              <RotateCcw className="h-3.5 w-3.5" /> Reset
-            </Button>
-          </div>
-        </div>
-
-        {/* Active filter display */}
-        {(startDate || endDate || categoryFilter !== "all") && (
-          <div className="mt-3 flex items-center gap-2 flex-wrap">
-            {(startDate || endDate) && (
-              <div className="flex items-center gap-2 text-xs text-sky-700 dark:text-sky-400 font-medium bg-sky-50 dark:bg-sky-950/30 px-3 py-1.5 rounded-lg border border-sky-100 dark:border-sky-900/40 w-fit">
-                <Calendar className="h-3 w-3" />
-                {startDate?.toLocaleDateString() || "..."} — {endDate?.toLocaleDateString() || "..."}
-              </div>
-            )}
-            {categoryFilter !== "all" && (
-              <div className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border w-fit ${
-                categoryFilter === "chicken" ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800/40" :
-                categoryFilter === "pork" ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-800/40" :
-                "bg-orange-50 text-orange-800 border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800/40"
-              }`}>
-                <span className={`inline-block h-2 w-2 rounded-full ${
-                  categoryFilter === "chicken" ? "bg-amber-500" :
-                  categoryFilter === "pork" ? "bg-rose-500" :
-                  "bg-orange-700"
-                }`} />
-                {MEAT_CATEGORIES.find(c => c.value === categoryFilter)?.label}
-              </div>
-            )}
-            <span className="text-xs font-bold text-gray-500 dark:text-gray-400">({totalResults} records)</span>
-          </div>
-        )}
-      </div>
 
       {/* ── Summary Cards ───────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
@@ -373,33 +281,127 @@ export function EncoderReports() {
 
       {/* ── Report Table ────────────────────────────────────────────────── */}
       <div className="bg-white dark:bg-card border border-gray-100 dark:border-border rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-        {/* Table toolbar */}
-        <div className="flex flex-wrap items-center gap-3 p-5 border-b border-gray-100 dark:border-border">
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search product, barcode, customer..."
-              value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setPage(1) }}
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-secondary/30 border border-gray-200 dark:border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-300 transition-all duration-200 text-gray-800 dark:text-foreground placeholder:text-gray-400"
-            />
-          </div>
-          <div className="flex items-center gap-3 ml-auto">
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Rows per page:</label>
-              <select
-                value={pageSize}
-                onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1) }}
-                className="px-2.5 py-2 bg-gray-50 dark:bg-secondary/30 border border-gray-200 dark:border-border rounded-xl text-sm font-semibold text-gray-700 dark:text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/20 cursor-pointer transition-all duration-200"
-              >
-                {PAGE_SIZE_OPTIONS.map((size) => (
-                  <option key={size} value={size}>{size}</option>
-                ))}
-              </select>
+        {/* Filter Toolbar */}
+        <div className="p-5 border-b border-gray-100 dark:border-border space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-end gap-4">
+            
+            {/* Search */}
+            <div className="relative flex-1 min-w-[240px]">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Search</label>
+              <div className="relative">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search product, barcode, customer..."
+                  value={searchTerm}
+                  onChange={(e) => { setSearchTerm(e.target.value); setPage(1) }}
+                  className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-secondary/30 border border-gray-200 dark:border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-400 transition-all text-gray-800 dark:text-foreground"
+                />
+              </div>
             </div>
-            <div className="text-xs font-semibold text-gray-500 px-4 py-2 rounded-full bg-gray-50 dark:bg-secondary/30 border border-gray-200 dark:border-border">
-              {totalResults} records
+
+            {/* Product Category */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Category</label>
+              <div className="relative">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => { setCategoryFilter(e.target.value as MeatCategory); setPage(1) }}
+                  className="pl-9 pr-8 py-2 bg-gray-50 dark:bg-secondary/30 border border-gray-200 dark:border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all text-gray-800 dark:text-foreground appearance-none min-w-[130px] cursor-pointer"
+                >
+                  <option value="all">All Categories</option>
+                  {MEAT_CATEGORIES.map((cat) => (
+                    <option key={cat.value} value={cat.value}>{cat.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Date Range */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Start Date</label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                <input
+                  type="date"
+                  value={formatDate(startDate)}
+                  onChange={(e) => { setStartDate(e.target.value ? new Date(e.target.value + "T00:00:00") : null); setPage(1) }}
+                  className="pl-9 pr-4 py-2 bg-gray-50 dark:bg-secondary/30 border border-gray-200 dark:border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all text-gray-800 dark:text-foreground"
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">End Date</label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                <input
+                  type="date"
+                  value={formatDate(endDate)}
+                  onChange={(e) => { setEndDate(e.target.value ? new Date(e.target.value + "T23:59:59") : null); setPage(1) }}
+                  className="pl-9 pr-4 py-2 bg-gray-50 dark:bg-secondary/30 border border-gray-200 dark:border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all text-gray-800 dark:text-foreground"
+                />
+              </div>
+            </div>
+
+            {/* Quick Filter Buttons */}
+            <div className="flex items-center gap-1.5">
+              <Button size="sm" variant="outline" className="h-9 rounded-xl text-xs" onClick={setToday}>Today</Button>
+              <Button size="sm" variant="outline" className="h-9 rounded-xl text-xs" onClick={setThisWeek}>This Week</Button>
+              <Button size="sm" variant="outline" className="h-9 rounded-xl text-xs" onClick={setThisMonth}>This Month</Button>
+              <Button size="sm" variant="ghost" className="h-9 rounded-xl text-xs text-gray-500 px-2" onClick={resetFilters}>
+                <RotateCcw className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Active filter display & Rows selector */}
+          <div className="flex items-center justify-between flex-wrap gap-3 pt-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {(startDate || endDate || categoryFilter !== "all") && (
+                <>
+                  {(startDate || endDate) && (
+                    <div className="flex items-center gap-2 text-xs text-sky-700 dark:text-sky-400 font-medium bg-sky-50 dark:bg-sky-950/30 px-3 py-1.5 rounded-lg border border-sky-100 dark:border-sky-900/40 w-fit">
+                      <Calendar className="h-3 w-3" />
+                      {startDate?.toLocaleDateString() || "..."} — {endDate?.toLocaleDateString() || "..."}
+                    </div>
+                  )}
+                  {categoryFilter !== "all" && (
+                    <div className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border w-fit ${
+                      categoryFilter === "chicken" ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800/40" :
+                      categoryFilter === "pork" ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-800/40" :
+                      "bg-orange-50 text-orange-800 border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800/40"
+                    }`}>
+                      <span className={`inline-block h-2 w-2 rounded-full ${
+                        categoryFilter === "chicken" ? "bg-amber-500" :
+                        categoryFilter === "pork" ? "bg-rose-500" :
+                        "bg-orange-700"
+                      }`} />
+                      {MEAT_CATEGORIES.find(c => c.value === categoryFilter)?.label}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Pagination Controls / Records Count */}
+            <div className="flex items-center gap-3 ml-auto">
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Rows per page:</label>
+                <select
+                  value={pageSize}
+                  onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1) }}
+                  className="px-2.5 py-1.5 bg-gray-50 dark:bg-secondary/30 border border-gray-200 dark:border-border rounded-lg text-sm font-semibold text-gray-700 dark:text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/20 cursor-pointer transition-all duration-200"
+                >
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <option key={size} value={size}>{size}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="text-xs font-semibold text-gray-500 px-3 py-1.5 rounded-full bg-gray-50 dark:bg-secondary/30 border border-gray-200 dark:border-border">
+                {totalResults} records
+              </div>
             </div>
           </div>
         </div>

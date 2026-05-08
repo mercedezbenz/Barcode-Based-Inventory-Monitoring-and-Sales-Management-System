@@ -31,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { InventoryService, TransactionService, StockMovementService } from "@/services/firebase-service"
 import type { InventoryItem } from "@/lib/types"
 import { CATEGORIES, getTypesForCategory } from "@/lib/product-data"
+import { logActivity } from "@/lib/activity-logger"
 
 // ---
 // Types
@@ -274,6 +275,20 @@ export function ReturnItemDialog({ open, onOpenChange, inventoryItems, scannedIt
         createdBy: user.uid,
         createdAt: new Date(),
         updatedAt: new Date(),
+      })
+
+      // 4. Log Activity
+      console.log("About to log activity")
+      await logActivity({
+        type: "returns_processed",
+        message: `Processed returns for ${getProductName(selectedItem)}`,
+        performedBy: user.email || "Unknown User",
+        role: "encoder",
+        metadata: {
+          productName: getProductName(selectedItem),
+          goodReturnKg: goodReturnNum,
+          badReturnKg: badReturnNum,
+        },
       })
 
       setShowConfirm(false)
