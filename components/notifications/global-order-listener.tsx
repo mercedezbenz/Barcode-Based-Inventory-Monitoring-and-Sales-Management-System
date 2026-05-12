@@ -63,7 +63,8 @@ export function GlobalOrderListener() {
   useEffect(() => {
     // We only need to listen if the user is authorized to see orders (sales/admin)
     // But only 'sales' should trigger the creation to keep it consistent
-    if (!user || user.role !== "sales") return;
+    const normalizedRole = user?.role?.toLowerCase().trim()
+    if (!user || normalizedRole !== "sales") return;
 
     const db = getFirebaseDb();
     if (!db) return;

@@ -182,7 +182,7 @@ export default function UsersPage() {
 
         {/* Stats Cards */}
         <div className="grid gap-4 md:grid-cols-4">
-          <Card className="transition-all duration-300 hover:shadow-md">
+          <Card className="transition-all duration-300 hover:shadow-md select-none cursor-pointer">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Users</CardTitle>
               <TotalUsersIcon />
@@ -192,7 +192,7 @@ export default function UsersPage() {
             </CardContent>
           </Card>
 
-          <Card className="transition-all duration-300 hover:shadow-md">
+          <Card className="transition-all duration-300 hover:shadow-md select-none cursor-pointer">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Admins</CardTitle>
               <AdminsIcon />
@@ -202,7 +202,7 @@ export default function UsersPage() {
             </CardContent>
           </Card>
 
-          <Card className="transition-all duration-300 hover:shadow-md">
+          <Card className="transition-all duration-300 hover:shadow-md select-none cursor-pointer">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Staff Members</CardTitle>
               <StaffMembersIcon />
@@ -212,7 +212,7 @@ export default function UsersPage() {
             </CardContent>
           </Card>
 
-          <Card className="transition-all duration-300 hover:shadow-md">
+          <Card className="transition-all duration-300 hover:shadow-md select-none cursor-pointer">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Delivery Staff</CardTitle>
               <DeliveryStaffIcon />
@@ -240,7 +240,7 @@ export default function UsersPage() {
           <CardContent className="space-y-6">
             {/* Filter Tabs */}
             <Tabs value={filterRole} onValueChange={(value) => setFilterRole(value as FilterRole)}>
-              <TabsList className="grid w-full grid-cols-4 h-12 p-1.5 gap-2">
+              <TabsList className="grid w-full grid-cols-4 h-12 p-1.5 gap-2 select-none">
                 <TabsTrigger value="all" className="text-sm font-medium">All Users</TabsTrigger>
                 <TabsTrigger value="admin" className="text-sm font-medium">Admin</TabsTrigger>
                 <TabsTrigger value="staff" className="text-sm font-medium">Staff Member</TabsTrigger>
@@ -266,7 +266,7 @@ export default function UsersPage() {
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-muted/60 hover:bg-muted/60 border-b-2">
+                      <TableRow className="bg-muted/60 hover:bg-muted/60 border-b-2 select-none">
                         {isDeliveryTab && (
                           <TableHead className="w-20 h-14 px-6 text-xs font-bold uppercase tracking-wider text-center align-middle">
                             Photo
@@ -312,6 +312,8 @@ export default function UsersPage() {
                             className={`
                               transition-all duration-200 ease-in-out
                               hover:bg-primary/5
+                              select-none
+                              cursor-default
                               ${!isLastRow ? 'border-b' : ''}
                             `}
                           >

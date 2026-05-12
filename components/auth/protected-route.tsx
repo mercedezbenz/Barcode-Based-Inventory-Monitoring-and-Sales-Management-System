@@ -37,7 +37,13 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
     // Role-based access check — redirect to dashboard if not allowed
     if (!loading && user && pathname) {
-      const role = user.role
+      const role = user.role?.toLowerCase().trim()
+
+      // Pending users always go to /pending-approval
+      if (role === "pending" && pathname !== "/pending-approval") {
+        router.replace("/pending-approval")
+        return
+      }
 
       // If explicit allowedRoles prop is provided, use that
       if (allowedRoles && allowedRoles.length > 0) {
@@ -73,11 +79,11 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   }
 
   // Check role access before rendering (prevents flash of restricted content)
-  if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
+  if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(user.role?.toLowerCase().trim())) {
     return <AuthLoadingSkeleton />
   }
 
-  if (pathname && !canAccessRoute(user.role, pathname)) {
+  if (pathname && !canAccessRoute(user.role?.toLowerCase().trim(), pathname)) {
     return <AuthLoadingSkeleton />
   }
 

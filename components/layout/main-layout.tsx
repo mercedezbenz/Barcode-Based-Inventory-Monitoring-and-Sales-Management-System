@@ -24,11 +24,13 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   }, [isWelcomeManual, user?.email, setShowManual, setIsWelcomeManual])
 
   return (
-    <div className="min-h-screen bg-background">
-      <GlobalChatListener />
-      <GlobalOrderListener />
-      <EncoderTaskListener />
-      <Sidebar />
+  <div className="min-h-screen bg-background">
+    <GlobalChatListener />
+    <GlobalOrderListener />
+
+    <EncoderTaskListener />
+
+    <Sidebar />
       <div className={isCollapsed ? "md:ml-16" : "md:ml-64"} style={{ transition: "margin-left 200ms ease-in-out" }}>
         <Header />
         <main className="p-3 sm:p-4 md:p-6 pt-16 md:pt-3">{children}</main>
@@ -41,10 +43,13 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         isWelcome={isWelcomeManual}
         defaultTab={
           isWelcomeManual
-            ? user?.role === "sales" ? "sales"
-            : user?.role === "encoder" ? "encoder"
-            : user?.role === "owner" ? "owner"
-            : "general"
+            ? (() => {
+                const r = user?.role?.toLowerCase().trim()
+                return r === "sales" ? "sales"
+                  : r === "encoder" ? "encoder"
+                  : r === "owner" ? "owner"
+                  : "general"
+              })()
             : undefined
         }
       />

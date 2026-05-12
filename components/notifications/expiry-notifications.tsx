@@ -36,7 +36,8 @@ export function ExpiryNotifications() {
   const router = useRouter()
   const pathname = usePathname()
   const { user } = useAuth()
-  const userRole = user?.role
+  const rawUserRole = user?.role
+  const userRole = rawUserRole?.toLowerCase().trim()
   const [expiryNotifications, setExpiryNotifications] = useState<ExpiryNotification[]>([])
   const [lowStockNotifications, setLowStockNotifications] = useState<LowStockNotification[]>([])
   const [loading, setLoading] = useState(true)

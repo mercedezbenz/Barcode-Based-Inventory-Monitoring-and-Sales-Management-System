@@ -1,7 +1,7 @@
 export interface User {
   uid: string
   email: string
-  role: "admin" | "staff" | "driver" | "sales" | "purchasing" | "owner" | "encoder"
+  role: "admin" | "staff" | "driver" | "sales" | "purchasing" | "owner" | "encoder" | "pending" | "customer"
   status: "active" | "inactive"
   fullName?: string
   profilePhotoUrl?: string

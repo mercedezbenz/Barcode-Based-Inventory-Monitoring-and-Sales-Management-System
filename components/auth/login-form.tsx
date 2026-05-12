@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2, AlertTriangle, Clock, Eye, EyeOff, Mail, Lock } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 
 export function LoginForm() {
   const [email, setEmail] = useState("");
@@ -81,6 +82,18 @@ export function LoginForm() {
       console.log("[Login] Attempting login with:", email);
       await signIn(email, password);
       console.log("[Login] Login successful, redirecting...");
+      // Check if user is pending — redirect to pending-approval page
+      const db = (await import("@/lib/firebase-live")).getFirebaseDb();
+      const { doc: fbDocRef, getDoc: fbGetDocFn } = await import("firebase/firestore");
+      const auth = (await import("@/lib/firebase-live")).getFirebaseAuth();
+      const currentUid = auth.currentUser?.uid;
+      if (currentUid) {
+        const snap = await fbGetDocFn(fbDocRef(db, "users", currentUid));
+        if (snap.exists() && snap.data()?.role === "pending") {
+          router.replace("/pending-approval");
+          return;
+        }
+      }
       router.replace("/");
     } catch (error: any) {
       console.error("[Login] Login error:", error);
@@ -606,6 +619,21 @@ export function LoginForm() {
                   </span>
                 </button>
               </form>
+
+              {/* Register Link */}
+              <div style={{ textAlign: 'center', marginTop: '1.25rem' }}>
+                <span style={{ fontSize: '0.82rem', color: '#64748b' }}>
+                  Don&apos;t have an account?{' '}
+                  <Link
+                    href="/register"
+                    style={{ color: '#3b82f6', fontWeight: 600, textDecoration: 'none' }}
+                    onMouseOver={(e: any) => (e.currentTarget.style.textDecoration = 'underline')}
+                    onMouseOut={(e: any) => (e.currentTarget.style.textDecoration = 'none')}
+                  >
+                    Register
+                  </Link>
+                </span>
+              </div>
             </div>
           </div>
 

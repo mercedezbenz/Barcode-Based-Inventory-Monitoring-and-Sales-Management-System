@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { collection, query, where, orderBy, onSnapshot, updateDoc, doc, limit } from "firebase/firestore"
 import { getFirebaseDb } from "@/lib/firebase-live"
 
@@ -8,14 +8,27 @@ export interface Notification {
   message: string
   targetRole: string
   userId?: string | null
+  recipientUid?: string | null
+  recipientEmail?: string | null
   type: "ORDER" | "STOCK" | "SYSTEM" | "order" | "new_order"
   isRead: boolean
   createdAt: any
 }
 
-export function useNotifications(userRole?: string) {
+/**
+ * useNotifications hook
+ * 
+ * Fetches notifications scoped to the current user:
+ * - For encoder role: filters by recipientUid (user-specific notifications)
+ * - For other roles: filters by targetRole (role-level notifications)
+ * 
+ * This ensures each encoder user only sees their own notifications,
+ * preventing cross-user notification leakage.
+ */
+export function useNotifications(userRole?: string, userUid?: string) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
+  const prevIdentity = useRef<string>("")
 
   useEffect(() => {
     if (!userRole) {
@@ -24,19 +37,42 @@ export function useNotifications(userRole?: string) {
       return
     }
 
-    console.log(`[useNotifications] 🔔 Subscribing for role: "${userRole}"`)
+    const normalizedRole = userRole.toLowerCase().trim()
+
+    // Reset notifications immediately when user identity changes
+    const currentIdentity = `${normalizedRole}:${userUid || "none"}`
+    if (prevIdentity.current && prevIdentity.current !== currentIdentity) {
+      console.log(`[useNotifications] 🔄 Identity changed from ${prevIdentity.current} → ${currentIdentity}, clearing stale notifications`)
+      setNotifications([])
+      setLoading(true)
+    }
+    prevIdentity.current = currentIdentity
+
+    console.log(`[useNotifications] 🔔 Subscribing for role: "${normalizedRole}", uid: "${userUid || "N/A"}"`)
 
     const db = getFirebaseDb()
     const notificationsRef = collection(db, "notifications")
 
-    // Strictly fetch ONLY this role's notifications
-    // Note: If you get an error here about a missing index, click the link in the console to create it.
-    const q = query(
-      notificationsRef,
-      where("targetRole", "==", userRole.toLowerCase()),
-      orderBy("createdAt", "desc"),
-      limit(30)
-    )
+    let q;
+
+    // For encoder role, use user-specific filtering via recipientUid
+    if (normalizedRole === "encoder" && userUid) {
+      q = query(
+        notificationsRef,
+        where("targetRole", "==", "encoder"),
+        where("recipientUid", "==", userUid),
+        orderBy("createdAt", "desc"),
+        limit(30)
+      )
+    } else {
+      // For other roles, keep role-level filtering
+      q = query(
+        notificationsRef,
+        where("targetRole", "==", normalizedRole),
+        orderBy("createdAt", "desc"),
+        limit(30)
+      )
+    }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const allNotifs = snapshot.docs.map((docSnap) => ({
@@ -44,19 +80,26 @@ export function useNotifications(userRole?: string) {
         ...docSnap.data(),
       })) as Notification[]
 
-      console.log(`[useNotifications] 📥 Received ${allNotifs.length} notifications for ${userRole}`)
+      console.log(`[useNotifications] 📥 Received ${allNotifs.length} notifications for ${normalizedRole}${userUid ? ` (uid: ${userUid})` : ""}`)
 
       // SECONDARY FAILSAFE FILTER: Hard-block any role leakage
       const roleFiltered = allNotifs.filter((n) => {
-        const matchesRole = n.targetRole?.toLowerCase() === userRole.toLowerCase()
+        const matchesRole = n.targetRole?.toLowerCase() === normalizedRole
+        
+        // For encoder, also verify recipientUid matches current user
+        if (normalizedRole === "encoder" && userUid) {
+          const matchesUser = n.recipientUid === userUid
+          if (!matchesUser) {
+            console.warn(`[useNotifications] 🚨 ENCODER USER LEAKAGE: Notification ${n.id} has recipientUid=${n.recipientUid} but current user is ${userUid}`)
+            return false
+          }
+        }
         
         // SALES-SPECIFIC FILTER: Only show "New Order" notifications
-        if (userRole.toLowerCase() === "sales") {
+        if (normalizedRole === "sales") {
           const titleLower = n.title?.toLowerCase() || ""
           const typeLower = n.type?.toLowerCase() || ""
           
-          // Must be a New Order notification
-          // Specifically exclude "Ready for Processing" which is an encoder task notification
           return matchesRole && (
             (typeLower === "new_order" || titleLower.includes("new order")) && 
             !titleLower.includes("ready for processing")
@@ -65,12 +108,6 @@ export function useNotifications(userRole?: string) {
         
         return matchesRole
       })
-
-      // LEAKAGE DETECTOR: Log if query returned incorrect roles
-      if (roleFiltered.length < allNotifs.length) {
-        const leaked = allNotifs.filter(n => n.targetRole?.toLowerCase() !== userRole.toLowerCase())
-        console.warn(`[useNotifications] 🚨 ROLE LEAKAGE DETECTED! Found ${allNotifs.length - roleFiltered.length} items for other roles:`, leaked.map(l => l.targetRole))
-      }
 
       setLoading(false)
 
@@ -87,13 +124,48 @@ export function useNotifications(userRole?: string) {
       setNotifications(uniqueNotifs)
     }, (error) => {
       console.error(`[useNotifications] ❌ Error fetching notifications:`, error)
-      // If index is missing or permissions fail, set empty to avoid crash
+      
+      if (error.code === "failed-precondition" && normalizedRole === "encoder" && userUid) {
+        const fallbackQ = query(
+          notificationsRef,
+          where("targetRole", "==", "encoder"),
+          orderBy("createdAt", "desc"),
+          limit(30)
+        )
+        
+        const fallbackUnsub = onSnapshot(fallbackQ, (snapshot) => {
+          const allNotifs = snapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+          })) as Notification[]
+          
+          const userFiltered = allNotifs.filter((n: any) => n.recipientUid === userUid)
+          
+          const uniqueNotifsMap = new Map<string, Notification>()
+          userFiltered.forEach((n: any) => {
+            const key = n.orderId || n.id
+            if (!uniqueNotifsMap.has(key)) {
+              uniqueNotifsMap.set(key, n)
+            }
+          })
+          
+          setNotifications(Array.from(uniqueNotifsMap.values()))
+          setLoading(false)
+        }, (fallbackError) => {
+          console.error("[useNotifications] ❌ Fallback query also failed:", fallbackError)
+          setNotifications([])
+          setLoading(false)
+        })
+        
+        return () => fallbackUnsub()
+      }
+      
       setNotifications([])
       setLoading(false)
     })
 
     return () => unsubscribe()
-  }, [userRole])
+  }, [userRole, userUid])
 
   const markAsRead = async (notificationId: string) => {
     try {

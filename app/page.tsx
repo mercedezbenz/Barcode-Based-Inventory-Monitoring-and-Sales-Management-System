@@ -19,6 +19,10 @@ export default function HomePage() {
       console.log("[HomePage] No user found, redirecting to /login")
       router.replace("/login")
     }
+    // Redirect pending users to approval page
+    if (!loading && user && user.role === "pending") {
+      router.replace("/pending-approval")
+    }
   }, [user, loading, isLoggingOut, router])
 
   // Show clean logout overlay — no dashboard flicker

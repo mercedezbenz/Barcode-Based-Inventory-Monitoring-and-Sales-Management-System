@@ -13,7 +13,11 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace("/");
+      if (user.role?.toLowerCase().trim() === "pending") {
+        router.replace("/pending-approval");
+      } else {
+        router.replace("/");
+      }
     }
     if (!loading && !user) {
       setShowLogin(true);

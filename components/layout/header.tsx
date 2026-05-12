@@ -45,7 +45,7 @@ export function Header() {
       setIsWelcomeManual(true)
       setShowManual(true)
     }
-  }, [user?.email])
+  }, [user?.email, setIsWelcomeManual, setShowManual])
 
   const handleManualOpen = useCallback(() => {
     setIsWelcomeManual(false)
@@ -92,21 +92,25 @@ export function Header() {
           {/* Right side */}
           <div className="flex items-center space-x-2 sm:space-x-4">
             {/* Notifications based on role */}
-            {user?.role === "sales" && (
-              <>
-                <SalesNotifications userRole={user.role} />
-                <ChatNotifications userRole={user.role} />
-              </>
-            )}
-            {user?.role === "encoder" && (
-              <>
-                <ExpiryNotifications />
-                <SalesNotifications userRole={user.role} />
-              </>
-            )}
-            {["admin", "inventory", "purchasing", "owner"].includes(user?.role || "") && (
-              <ExpiryNotifications />
-            )}
+            {(() => {
+              const normalizedRole = user?.role?.toLowerCase().trim()
+              return (
+                <>
+                  {normalizedRole === "sales" && (
+                    <>
+                      <SalesNotifications userRole={normalizedRole} />
+                      <ChatNotifications userRole={normalizedRole} />
+                    </>
+                  )}
+                  {normalizedRole === "encoder" && (
+                    <ExpiryNotifications />
+                  )}
+                  {["admin", "inventory", "purchasing", "owner"].includes(normalizedRole || "") && (
+                    <ExpiryNotifications />
+                  )}
+                </>
+              )
+            })()}
 
             {/* User Manual button */}
             <button

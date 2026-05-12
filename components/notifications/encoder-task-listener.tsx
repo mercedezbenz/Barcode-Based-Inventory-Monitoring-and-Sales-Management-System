@@ -40,7 +40,12 @@ const playEncoderNotificationSound = () => {
  *
  * Listens for new encoder tasks in the 'encoder_tasks' collection.
  * When a new task appears with status "READY_FOR_PROCESSING" or "ready_for_processing",
- * it creates a notification document for the 'encoder' role.
+ * it creates a notification document for the CURRENT encoder user (user-specific).
+ *
+ * IMPORTANT: Notifications are now scoped per-user using:
+ * - recipientUid: the current user's UID
+ * - recipientEmail: the current user's email
+ * This ensures each encoder only sees their own notifications.
  *
  * This component runs as a logic-only component (renders null)
  * and is mounted in the MainLayout.
@@ -49,6 +54,7 @@ export function EncoderTaskListener() {
   const { user } = useAuth();
   const isInitialLoad = useRef<boolean>(true);
   const processedTaskIds = useRef<Set<string>>(new Set());
+  const prevUserUid = useRef<string | null>(null);
 
   // Browser Autoplay Fix: Unlock audio on first interaction
   useEffect(() => {
@@ -65,12 +71,21 @@ export function EncoderTaskListener() {
 
   useEffect(() => {
     // Only encoder and admin roles should have this listener active
-    if (!user || !["encoder", "admin"].includes(user.role || "")) return;
+    const normalizedRole = user?.role?.toLowerCase().trim()
+    if (!user || !["encoder", "admin"].includes(normalizedRole || "")) return;
 
     const db = getFirebaseDb();
     if (!db) return;
 
-    console.log("[EncoderTaskListener] 🛰️ Monitoring for new encoder tasks...");
+    // ✅ FIX: Reset state when user changes (account switch)
+    if (prevUserUid.current !== null && prevUserUid.current !== user.uid) {
+      console.log("[EncoderTaskListener] 🔄 User changed, resetting state...");
+      isInitialLoad.current = true;
+      processedTaskIds.current.clear();
+    }
+    prevUserUid.current = user.uid;
+
+    console.log(`[EncoderTaskListener] 🛰️ Monitoring for new encoder tasks for user: ${user.email} (${user.uid})`);
 
     // Listen to encoder_tasks collection for pending/ready tasks
     const q = query(
@@ -117,12 +132,13 @@ export function EncoderTaskListener() {
           // Mark as processed immediately to prevent duplicate handling
           processedTaskIds.current.add(taskId);
 
-          // 1. Check if notification already exists to prevent duplicates
+          // 1. Check if a user-specific notification already exists to prevent duplicates
           try {
             const notifQuery = query(
               collection(db, "notifications"),
               where("encoderTaskId", "==", taskId),
               where("type", "==", "pending_task"),
+              where("recipientUid", "==", user.uid),
               limit(1)
             );
 
@@ -130,9 +146,10 @@ export function EncoderTaskListener() {
 
             if (existingNotifs.empty) {
               console.log(
-                `[EncoderTaskListener] 🔔 Creating notification for Task #${taskId}`
+                `[EncoderTaskListener] 🔔 Creating notification for Task #${taskId} → user ${user.email}`
               );
 
+              // ✅ FIX: Create user-specific notification with recipientUid and recipientEmail
               await addDoc(collection(db, "notifications"), {
                 title: "New Pending Task",
                 message: `${customerName} — Invoice: ${invoiceNo}`,
@@ -143,6 +160,8 @@ export function EncoderTaskListener() {
                 invoiceNo: invoiceNo,
                 customerName: customerName,
                 recipient: "encoder",
+                recipientUid: user.uid,
+                recipientEmail: user.email || "",
                 status: "unread",
                 isRead: false,
                 createdAt: serverTimestamp(),
@@ -161,7 +180,7 @@ export function EncoderTaskListener() {
               );
             } else {
               console.log(
-                `[EncoderTaskListener] ⏭️ Notification already exists for Task #${taskId}`
+                `[EncoderTaskListener] ⏭️ Notification already exists for Task #${taskId} for user ${user.email}`
               );
             }
           } catch (err) {
@@ -178,7 +197,7 @@ export function EncoderTaskListener() {
       console.log("[EncoderTaskListener] 🧹 Cleaning up listener");
       unsub();
     };
-  }, [user]);
+  }, [user?.uid, user?.role, user]);
 
   return null; // Logic-only component
 }

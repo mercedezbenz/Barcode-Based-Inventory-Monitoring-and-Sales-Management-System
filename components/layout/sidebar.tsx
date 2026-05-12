@@ -19,7 +19,7 @@ import { DefaultSidebar } from "@/components/sidebar/DefaultSidebar"
  */
 export function Sidebar() {
   const { user } = useAuth()
-  const role = user?.role
+  const role = user?.role?.toLowerCase().trim()
 
   if (role === "encoder") {
     return <EncoderSidebar />

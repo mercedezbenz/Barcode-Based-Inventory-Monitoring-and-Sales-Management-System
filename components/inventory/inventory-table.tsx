@@ -424,56 +424,67 @@ export function InventoryTable({
 
   // ─── Group transactions by product_name ──────────────────────────────────────
   const groupedProducts: GroupedProduct[] = useMemo(() => {
+
     // STEP 1: Sort ALL transactions chronologically (oldest first) BEFORE grouping
     // This ensures movementOrigin detection is reliable regardless of Firestore document order
+    const barcodeMap = new Map<string, any>()
+
+    // STEP 0: Initialize from items list to ensure master-list consistency
+    // This ensures that if the KPI counts an item, it WILL appear in the table.
+    for (const item of items) {
+      const bc = String(item.barcode || "").trim()
+      if (!bc || barcodeMap.has(bc)) continue
+
+      barcodeMap.set(bc, {
+        barcode: bc,
+        product_id: (item as any).product_id || "",
+        imageUrl: (item as any).imageUrl || (item as any).product_image || "",
+        productName: item.name || (item as any).productName || "Unknown Product",
+        isArchived: Boolean(item.isArchived),
+        archivedReason: (item as any).archivedReason || "manual",
+        archivedAt: (item as any).archivedAt || null,
+        category: item.category || "",
+        movementOrigin: "Inventory Record",
+        latestDate: (item as any).updatedAt || (item as any).createdAt || new Date(),
+        unitType: "BOX", 
+        totalIncoming: Number(item.incoming || 0),
+        totalOutgoing: Number(item.outgoing || 0),
+        totalGoodReturn: Number(item.goodReturnStock || 0),
+        totalDamageReturn: Number(item.damageReturnStock || 0),
+        stockLeft: Number(item.stock || 0),
+        transactions: [],
+        latestBadReturnDetails: null,
+        dateAdded: (item as any).createdAt || null,
+        expiryDate: item.expirationDate || (item as any).expiryDate || null,
+        productionDate: (item as any).productionDate || null,
+        supplierName: (item as any).supplierName || "",
+        production_weight: (item as any).production_weight ?? null,
+        packing_weight: (item as any).packing_weight ?? null,
+        weight_difference: (item as any).weight_difference ?? null,
+        incoming_weight: Number(item.incoming || 0),
+        sales_invoice_no: (item as any).sales_invoice_no || null,
+        delivery_receipt_no: (item as any).delivery_receipt_no || null,
+      })
+    }
+
+    // STEP 1: Associate transactions with the initialized groups
+    // We do NOT initialize new groups here unless they are missing from items (should not happen with filteredItems)
     const sortedTransactions = [...transactions].sort((a: any, b: any) => {
       return parseDateToMs(a.transaction_date) - parseDateToMs(b.transaction_date)
     })
 
-    const barcodeMap = new Map<string, GroupedProduct>()
-
     for (const txn of sortedTransactions) {
-      const bc = (txn as any).barcode || txn.id
+      const bc = String((txn as any).barcode || "").trim()
       if (!bc) continue
 
-      if (!barcodeMap.has(bc)) {
-        barcodeMap.set(bc, {
-          barcode: bc,
-          product_id: (txn as any).product_id || "",
-          imageUrl: "",
-          productName: (txn as any).product_name || "Unknown Product",
-          isArchived: false,
-          archivedReason: "manual",
-          archivedAt: null,
-          category: (txn as any).category || "",
-          movementOrigin: "",  // Will be set from the EARLIEST incoming transaction
-          latestDate: (txn as any).transaction_date,
-          unitType: deriveUnitType(txn),
-          totalIncoming: 0,
-          totalOutgoing: 0,
-          totalGoodReturn: 0,
-          totalDamageReturn: 0,
-          stockLeft: 0,
-
-          transactions: [],
-          latestBadReturnDetails: null,
-          dateAdded: null,
-          expiryDate: null,
-          productionDate: null,
-          supplierName: "",
-          // Weight tracking
-          production_weight: null,
-          packing_weight: null,
-          weight_difference: null,
-          // Incoming weight tracking
-          incoming_weight: null,
-          // Transaction references
-          sales_invoice_no: null,
-          delivery_receipt_no: null,
-        })
+      let group = barcodeMap.get(bc)
+      
+      // Fallback: If for some reason a transaction exists for a barcode NOT in filtered items
+      if (!group) {
+        // Skip it because this table should only show what the dashboard provides in 'items'
+        continue
       }
 
-      const group = barcodeMap.get(bc)!
       group.transactions.push(txn)
 
       // Accumulate totals — prioritize weight fields
@@ -481,6 +492,16 @@ export function InventoryTable({
       const outgoingW = (txn as any).outgoing_weight ?? 0
       const goodReturnW = (txn as any).good_return_weight ?? 0
       const damageReturnW = (txn as any).damage_return_weight ?? 0
+
+      // ONLY accumulate if there are actually transactions (to avoid double counting if group was init with item values)
+      // Actually, if we have transactions, they are more accurate for the ledger view.
+      // Reset the initial master-list values when we have real transactions to sum.
+      if (group.transactions.length === 1) {
+        group.totalIncoming = 0
+        group.totalOutgoing = 0
+        group.totalGoodReturn = 0
+        group.totalDamageReturn = 0
+      }
 
       group.totalIncoming += incomingW
       group.totalOutgoing += outgoingW
@@ -536,7 +557,7 @@ export function InventoryTable({
         group.dateAdded = (first as any).created_at || (first as any).transaction_date || null
         group.expiryDate = group.expiryDate || (first as any).expiry_date || null
       }
-      group.stockLeft = Math.max(0, group.totalIncoming - group.totalOutgoing + group.totalGoodReturn)
+      group.stockLeft = Math.max(0, group.totalIncoming - group.totalOutgoing + group.totalGoodReturn - group.totalDamageReturn)
     }
 
     const itemsByBarcode = new Map<string, any>()
@@ -663,6 +684,8 @@ export function InventoryTable({
 
   // ─── Apply sort mode from dashboard ────────────────────────────────────
   const sortedProducts = useMemo(() => {
+    if (loading) return []
+
     const sorted = [...groupedProducts]
     switch (sortMode) {
       case "date-asc":
@@ -702,7 +725,7 @@ export function InventoryTable({
         break
     }
     return sorted
-  }, [groupedProducts, sortMode])
+  }, [groupedProducts, sortMode, loading])
   
 const filteredProducts = sortedProducts
   const dataLength = filteredProducts.length
@@ -955,7 +978,7 @@ const filteredProducts = sortedProducts
 
                         // Check if item should be highlighted based on the filter
                         let isHighlighted = false
-                        if (highlightFilter === "low-stock" && group.stockLeft > 0 && group.stockLeft < 10) {
+                        if (highlightFilter === "low-stock" && group.stockLeft > 0 && group.stockLeft <= 50) {
                           isHighlighted = true
                         } else if (highlightFilter === "out-of-stock" && group.stockLeft <= 0) {
                           isHighlighted = true
@@ -1156,7 +1179,7 @@ const filteredProducts = sortedProducts
                               colorClass = "text-red-700 dark:text-red-400";
                               bgClass = "bg-red-50 dark:bg-red-950/20";
                               dotClass = "bg-red-500";
-                            } else if (stock <= 5) {
+                            } else if (stock <= 50) {
                               colorClass = "text-amber-700 dark:text-amber-400";
                               bgClass = "bg-amber-50 dark:bg-amber-950/20";
                               dotClass = "bg-amber-500";
@@ -1198,7 +1221,7 @@ const filteredProducts = sortedProducts
                               const stock = group.stockLeft;
                               if (stock <= 0) {
                                 return <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-red-100 text-red-700 text-xs font-bold border border-red-200 shadow-sm">❌ Out</span>
-                              } else if (stock <= 5) {
+                              } else if (stock <= 50) {
                                 return <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 text-xs font-bold border border-amber-200 shadow-sm">⚠ Low</span>
                               } else {
                                 return <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-green-100 text-green-700 text-xs font-bold border border-green-200 shadow-sm">✅ OK</span>
@@ -1210,7 +1233,7 @@ const filteredProducts = sortedProducts
                         {/* Reorder Needed — ONLY shown when readOnly is true */}
                         {readOnly && (
                           <td className="px-2.5 py-1.5 align-middle text-center">
-                            {group.stockLeft <= 5 ? (
+                            {group.stockLeft <= 50 ? (
                               <span className="text-amber-600 font-bold text-xs tracking-wide">⚠ Yes</span>
                             ) : (
                               <span className="text-muted-foreground font-bold text-lg">—</span>
@@ -1411,7 +1434,7 @@ const filteredProducts = sortedProducts
               stockColorClass = "text-red-700 dark:text-red-400"
               stockBgClass = "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800"
               stockDotClass = "bg-red-500"
-            } else if (stock < 10) {
+            } else if (stock <= 50) {
               stockColorClass = "text-amber-700 dark:text-amber-400"
               stockBgClass = "bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800"
               stockDotClass = "bg-amber-500"

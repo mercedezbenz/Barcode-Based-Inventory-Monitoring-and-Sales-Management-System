@@ -80,29 +80,27 @@ export type ItemStatus = "all" | "in-stock" | "low-stock" | "out-of-stock" | "ex
 
 /** Derives the computed status of an inventory item from stockLeft and expirationDate. */
 export function getItemStatus(item: any): Exclude<ItemStatus, "all"> {
-  const incoming = item.incoming_weight ?? item.production_weight ?? 0
-  const outgoing = item.outgoing_weight ?? 0
-  const goodReturn = item.good_return_weight ?? 0
-  const damageReturn = item.damage_return_weight ?? 0
+  const incoming = item.incoming ?? item.incoming_weight ?? item.production_weight ?? 0
+  const outgoing = item.outgoing ?? item.outgoing_weight ?? 0
+  const goodReturn = item.goodReturnStock ?? item.good_return_weight ?? 0
+  const damageReturn = item.damageReturnStock ?? item.damage_return_weight ?? 0
   const weightLeft = Math.max(0, incoming - outgoing + goodReturn - damageReturn)
 
-  // Check expiration first — these states take priority over stock level
+  // 1. Check Expiration Status First (highest priority)
   const expiryDate = item.expiryDate ?? item.expirationDate ?? null
   if (expiryDate) {
-    try {
-      const d = expiryDate instanceof Date ? expiryDate
-        : expiryDate?.toDate ? expiryDate.toDate()
-          : new Date(expiryDate)
-      if (!isNaN(d.getTime())) {
-        const today = new Date(); today.setHours(0, 0, 0, 0)
-        const expiry = new Date(d); expiry.setHours(0, 0, 0, 0)
-        if (expiry < today) return "expired"
-        const sevenDays = new Date(today); sevenDays.setDate(today.getDate() + 7)
-        if (expiry <= sevenDays) return "expiring-soon"
-      }
-    } catch { /* ignore */ }
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const expiry = new Date(expiryDate instanceof Date ? expiryDate : expiryDate?.toDate ? expiryDate.toDate() : expiryDate)
+    
+    if (!isNaN(expiry.getTime())) {
+      if (expiry < today) return "expired"
+      const sevenDays = new Date(today); sevenDays.setDate(today.getDate() + 7)
+      if (expiry <= sevenDays) return "expiring-soon"
+    }
   }
 
+  // 2. Check Stock Status
   if (weightLeft <= 0) return "out-of-stock"
   if (weightLeft <= 50) return "low-stock"
   return "in-stock"
@@ -507,67 +505,28 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
   }, [router, toast])
 
   // Filter items by category, type, search query, stock status, expiration, and recently added
-  const filteredItems = useMemo(() => {
+  // 1. Base Filtered Items: Applied Category, Search, Type, Status, Expiry, etc.
+  const baseItems = useMemo(() => {
     const recentlyCutoff = getRecentlyCutoff(recentlyAddedFilter)
 
-    const filtered = items.filter((item) => {
-      // --- Active Card Filters ---
-      if (activeCardFilter) {
-        const incomingWeight = (item as any).incoming_weight ?? (item as any).production_weight ?? 0;
-        const outgoingWeight = (item as any).outgoing_weight ?? 0;
-        const goodReturnWeight = (item as any).good_return_weight ?? 0;
-        const damageReturnWeight = (item as any).damage_return_weight ?? 0;
-        const weightLeft = incomingWeight - outgoingWeight + goodReturnWeight - damageReturnWeight;
+    return items.filter((item) => {
+      // Basic validity check (Ghost item protection)
+      if (!item || typeof item !== "object") return false;
+      if ((item as any).deleted === true) return false;
 
-        if (activeCardFilter === "low-stock") {
-          if (weightLeft <= 0 || weightLeft > 50) return false;
-        } else if (activeCardFilter === "expiring-soon") {
-          if (!item.expirationDate) return false;
-          const expiryDate = new Date(item.expirationDate);
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          expiryDate.setHours(0, 0, 0, 0);
-          const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-          if (daysUntilExpiry > 30 || daysUntilExpiry < 0) return false;
-        } else if (activeCardFilter === "returns-summary") {
-          if (goodReturnWeight <= 0 && damageReturnWeight <= 0) return false;
-        } else if (activeCardFilter === "today-transactions") {
-          const todayStart = new Date();
-          todayStart.setHours(0, 0, 0, 0);
-          const todayEnd = new Date();
-          todayEnd.setHours(23, 59, 59, 999);
-          
-          // Check if this item's barcode exists in today's transactions
-          const hasTransactionToday = transactions.some(txn => {
-            if (txn.barcode !== item.barcode) return false;
-            const txDate = txn.transaction_date instanceof Date
-              ? txn.transaction_date
-              : (txn.transaction_date as any)?.toDate ? (txn.transaction_date as any).toDate()
-                : new Date(txn.transaction_date || 0);
-            if (isNaN(txDate.getTime()) || txDate < todayStart || txDate > todayEnd) return false;
-            
-            const incoming = txn.incoming_weight ?? txn.production_weight ?? 0;
-            const outgoing = txn.outgoing_weight ?? 0;
-            return incoming > 0 || outgoing > 0;
-          });
-          
-          if (!hasTransactionToday) return false;
-        }
-      }
-
-      // Category filter — match item.category against selected category
+      // Category filter
       if (selectedCategory !== "all") {
         const itemCategory = (item.category || "").trim()
         if (itemCategory.toLowerCase() !== selectedCategory.toLowerCase()) return false
       }
 
-      // Type filter — match item.productType against selected type
+      // Type filter
       if (selectedType !== "all") {
         const itemType = ((item as any).productType || "").trim()
         if (itemType.toLowerCase() !== selectedType.toLowerCase()) return false
       }
 
-      // Search filter - real-time debounced search by name, barcode
+      // Search filter
       if (debouncedSearch.trim()) {
         const query = debouncedSearch.toLowerCase().trim()
         const itemName = (item.name || "").toLowerCase()
@@ -589,7 +548,7 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
       if (stockStatusFilter === "archived") {
         if (!isArchived) return false
       } else {
-        if (isArchived) return false // Hide archived items unless specifically requested
+        if (isArchived) return false
         
         if (stockStatusFilter !== "all") {
           const status = getItemStatus(item)
@@ -624,8 +583,6 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
       if (selectedProductFilter) {
         const itemProductName = (item.name || item.productName || item.category || "").toLowerCase()
         const filterName = selectedProductFilter.toLowerCase()
-        
-        // Match either the full product name or the category-subcategory combination
         const categorySubcategory = item.subcategory 
           ? `${item.category} - ${item.subcategory}`.toLowerCase()
           : item.category.toLowerCase()
@@ -637,21 +594,78 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
 
       return true
     })
+  }, [items, selectedCategory, selectedType, debouncedSearch, stockStatusFilter, expirationFilter, recentlyAddedFilter, selectedProductFilter])
 
-    return filtered // Sorting is now handled by sortMode
-  }, [items, selectedCategory, selectedType, debouncedSearch, stockStatusFilter, expirationFilter, recentlyAddedFilter, selectedProductFilter, activeCardFilter, transactions])
+  // 2. Filtered Items for Table: Derived from baseItems + activeCardFilter
+  const filteredItems = useMemo(() => {
+    if (!activeCardFilter) return baseItems;
+
+    return baseItems.filter((item) => {
+      // Low Stock filter
+      if (activeCardFilter === "low-stock") {
+        const remainingKg = Number(
+          (item as any).remainingKg ??
+          (item as any).remaining ??
+          (item as any).currentStock ??
+          item.stock ??
+          0
+        );
+        const isLow = !isNaN(remainingKg) && isFinite(remainingKg) && remainingKg > 0 && remainingKg < 50;
+        return isLow;
+      }
+
+      // Expiring Soon filter
+      if (activeCardFilter === "expiring-soon") {
+        if (!item.expirationDate) return false;
+        const expiryDate = new Date(item.expirationDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        expiryDate.setHours(0, 0, 0, 0);
+        const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        return daysUntilExpiry <= 30 && daysUntilExpiry >= 0;
+      }
+
+      // Returns Summary filter
+      if (activeCardFilter === "returns-summary") {
+        const goodR = Number(item.goodReturnStock || 0);
+        const damageR = Number(item.damageReturnStock || 0);
+        return goodR > 0 || damageR > 0;
+      }
+
+      // Today Transactions filter
+      if (activeCardFilter === "today-transactions") {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayEnd = new Date();
+        todayEnd.setHours(23, 59, 59, 999);
+        
+        return transactions.some(txn => {
+          if (txn.barcode !== item.barcode) return false;
+          const txDate = txn.transaction_date instanceof Date
+            ? txn.transaction_date
+            : (txn.transaction_date as any)?.toDate ? (txn.transaction_date as any).toDate()
+              : new Date(txn.transaction_date || 0);
+          if (isNaN(txDate.getTime()) || txDate < todayStart || txDate > todayEnd) return false;
+          return (txn.incoming_weight ?? txn.production_weight ?? 0) > 0 || (txn.outgoing_weight ?? 0) > 0;
+        });
+      }
+
+      return true;
+    })
+  }, [baseItems, activeCardFilter, transactions])
 
   // Filter transactions for the table display (one row per transaction)
   const filteredTransactions = useMemo(() => {
     // Determine the barcodes of items that passed the item-level filters
-    // This correctly propagates the active card filter (e.g. Low Stock, Out of Stock) to the table
-    const validBarcodes = new Set(filteredItems.map(i => i.barcode).filter(Boolean));
+    // Cast to String to avoid type mismatch (number vs string)
+    const validBarcodes = new Set(filteredItems.map(i => String(i.barcode || "")).filter(Boolean));
 
     const recentlyCutoff = getRecentlyCutoff(recentlyAddedFilter)
 
     const filtered = transactions.filter((txn) => {
       // Synchronize transactions with filtered items
-      if (txn.barcode && !validBarcodes.has(txn.barcode)) return false;
+      const txnBarcode = String((txn as any).barcode || "");
+      if (txnBarcode && !validBarcodes.has(txnBarcode)) return false;
 
       // Ensure that if "today-transactions" is active, we ONLY show transactions from today
       if (activeCardFilter === "today-transactions") {
@@ -704,7 +718,7 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
     })
 
     return filtered // Sorting handled by sortMode in the table
-  }, [transactions, filteredItems, selectedCategory, selectedType, debouncedSearch, recentlyAddedFilter, stockStatusFilter])
+  }, [transactions, filteredItems, selectedCategory, selectedType, debouncedSearch, recentlyAddedFilter, stockStatusFilter, activeCardFilter, items])
 
   console.log("[Inventory Dashboard] Total items:", items.length, "Filtered items:", filteredItems.length, "Category:", selectedCategory, "Type:", selectedType, "Search:", debouncedSearch)
 
@@ -721,36 +735,51 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
   const totalItems = items.length
   // totalStockWeight is calculated above and used for the main KPI display
 
-  // Filter low stock items count
-  const lowStockItems = items.filter((item) => {
-    const isArchived = Boolean((item as any).isArchived)
-    if (isArchived) return false
-    const incomingWeight = (item as any).incoming_weight ?? (item as any).production_weight ?? 0
-    const outgoingWeight = (item as any).outgoing_weight ?? 0
-    const goodReturnWeight = (item as any).good_return_weight ?? 0
-    const damageReturnWeight = (item as any).damage_return_weight ?? 0
-    const weightLeft = incomingWeight - outgoingWeight + goodReturnWeight - damageReturnWeight
-    return weightLeft > 0 && weightLeft <= 50 // Below or equal 50kg threshold
-  }).length
 
-  const nearExpiryItems = filteredItems.filter((item) => {
+  // --- Low Stock KPI Source of Truth ---
+  // Count only items that passed the base filters (Category, Search, etc.)
+  const lowStockItemsList = useMemo(() => {
+    return baseItems.filter((item) => {
+      const remainingKg = Number(
+        (item as any).remainingKg ??
+        (item as any).remaining ??
+        (item as any).currentStock ??
+        item.stock ??
+        0
+      );
+
+      const isLow = 
+        item &&
+        typeof item === "object" &&
+        !(item as any).archived &&
+        !(item as any).isArchived &&
+        !(item as any).deleted &&
+        !isNaN(remainingKg) &&
+        isFinite(remainingKg) &&
+        remainingKg > 0 &&
+        remainingKg < 50;
+
+      if (isLow) {
+        console.log("LOW STOCK ITEM FOUND:", item);
+      }
+      return isLow;
+    });
+  }, [baseItems]);
+
+  const lowStockItemsCount = lowStockItemsList.length;
+
+
+  const nearExpiryItemsCount = filteredItems.filter((item) => {
     if (!item.expirationDate) return false
     
-    const incomingWeight = (item as any).incoming_weight ?? (item as any).production_weight ?? 0
-    const outgoingWeight = (item as any).outgoing_weight ?? 0
-    const goodReturnWeight = (item as any).good_return_weight ?? 0
-    const damageReturnWeight = (item as any).damage_return_weight ?? 0
-    const weightLeft = incomingWeight - outgoingWeight + goodReturnWeight - damageReturnWeight
-    
-    if (weightLeft <= 0) return false // No weight left, no need to alert for expiry
+    const stockValue = Number(item.stock || 0);
+    if (stockValue <= 0) return false // No weight left, no need to alert for expiry
 
     const expiryDate = new Date(item.expirationDate)
     const today = new Date()
     const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     return daysUntilExpiry <= 7 && daysUntilExpiry >= 0
   }).length
-
-  // Count out-of-stock items is removed
 
   // Count expiring-soon items (within 30 days, for card display)
   const expiringSoonItems = items.filter((item) => {
@@ -864,17 +893,14 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
     return calculateWeeklyCountChange({
       items: filteredItems,
       getDate: (item) => parseFirestoreDate((item as any).updatedAt || (item as any).createdAt),
-      currentWeekCount: lowStockItems,
+      currentWeekCount: lowStockItemsCount,
       filter: (item) => {
-        const incomingWeight = (item as any).incoming_weight ?? (item as any).production_weight ?? 0
-        const outgoingWeight = (item as any).outgoing_weight ?? 0
-        const goodReturnWeight = (item as any).good_return_weight ?? 0
-        const damageReturnWeight = (item as any).damage_return_weight ?? 0
-        const weightLeft = incomingWeight - outgoingWeight + goodReturnWeight - damageReturnWeight
-        return weightLeft > 0 && weightLeft < 50
+        const stockValue = Number(item.stock || 0)
+        const isItemArchived = Boolean(item.isArchived)
+        return !isNaN(stockValue) && isFinite(stockValue) && stockValue > 0 && stockValue < 50 && !isItemArchived
       },
     })
-  }, [filteredItems, lowStockItems])
+  }, [filteredItems, lowStockItemsCount])
 
   // Build active filter tags
   const activeFilterTags = useMemo(() => {
@@ -1047,14 +1073,14 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
           {/* ── 3. Low Stock ── */}
           <Card
             className={`group/card shadow-sm transition-all duration-300 rounded-xl bg-white dark:bg-card ${
-              lowStockItems > 0
+              lowStockItemsCount > 0
                 ? "cursor-pointer hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] " +
                   (activeCardFilter === "low-stock"
-                    ? "ring-2 ring-orange-500 dark:ring-orange-400 ring-offset-2 dark:ring-offset-gray-900 shadow-orange-100 dark:shadow-orange-900/20 bg-orange-50/50 dark:bg-orange-900/10"
+                    ? "ring-2 ring-orange-500 dark:ring-orange-400 ring-offset-2 dark:ring-offset-gray-900 shadow-orange-100 dark:shadow-orange-900/20 bg-orange-50/50 dark:bg-indigo-900/10"
                     : "hover:shadow-md hover:-translate-y-0.5")
                 : "cursor-default"
             }`}
-            onClick={() => { if (lowStockItems > 0) handleCardClick("low-stock") }}
+            onClick={() => { if (lowStockItemsCount > 0) handleCardClick("low-stock") }}
             title="Click to view low stock items"
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
@@ -1062,14 +1088,14 @@ export function InventoryDashboard({ isArchiveView = false }: { isArchiveView?: 
               <LowStockAlertIcon />
             </CardHeader>
             <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-              {lowStockItems === 0 ? (
+              {lowStockItemsCount === 0 ? (
                 <>
                   <div className="text-2xl sm:text-3xl font-bold text-green-600 dark:text-green-400">✔</div>
                   <p className="text-[10px] sm:text-xs text-green-600 mt-1">All items stocked</p>
                 </>
               ) : (
                 <>
-                  <div className="text-2xl sm:text-3xl font-bold tracking-tight text-orange-600 dark:text-orange-400">{lowStockItems} items</div>
+                  <div className="text-2xl sm:text-3xl font-bold tracking-tight text-orange-600 dark:text-orange-400">{lowStockItemsCount} items</div>
                   <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Below 50 kg threshold</p>
                 </>
               )}

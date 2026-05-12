@@ -435,7 +435,7 @@ export function ScanItemDialog({
         }
       }, 300)
     },
-    [inventoryItems]
+    [inventoryItems, user?.email]
   )
 
   // ── Auto-process barcode from global scanner ────────────────────────

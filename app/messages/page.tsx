@@ -9,6 +9,7 @@ import {
   ImagePlus
 } from "lucide-react";
 import { Archive, RotateCcw, Trash2 } from "lucide-react"
+import Image from 'next/image';
 import {
   collection,
   onSnapshot,
@@ -616,9 +617,12 @@ const [uploading, setUploading] =
           className="flex items-center gap-3 bg-[#4c9dc4] rounded-2xl p-3 border border-white/40"
         >
 
-          <img
+          <Image
             src={item.image}
-            alt={item.name}
+            alt={item.name || "Order Item"}
+            width={64}
+            height={64}
+            unoptimized
             className="w-16 h-16 rounded-xl object-cover bg-white"
           />
 
@@ -663,9 +667,12 @@ const [uploading, setUploading] =
 
 ) : m.image ? (
 
-  <img
+  <Image
     src={m.image}
     alt="attachment"
+    width={220}
+    height={220}
+    unoptimized
     onClick={() => {
 
   const allImages = messages
@@ -710,8 +717,12 @@ const [uploading, setUploading] =
           className="relative overflow-visible shrink-0"
         >
 
-          <img
+          <Image
             src={src}
+            alt={`Preview ${index + 1}`}
+            width={64}
+            height={64}
+            unoptimized
             className="w-16 h-16 rounded-lg object-cover"
           />
 
@@ -990,9 +1001,12 @@ const [uploading, setUploading] =
         >
 
           {/* IMAGE */}
-          <img
+          <Image
             src={item.image}
-            alt={item.name}
+            alt={item.name || "Order Item"}
+            width={80}
+            height={80}
+            unoptimized
             className="w-20 h-20 rounded-lg object-cover bg-white"
           />
 
@@ -1036,9 +1050,12 @@ const [uploading, setUploading] =
 
 ) : m.image ? (
 
-  <img
+  <Image
     src={m.image}
     alt="attachment"
+    width={220}
+    height={220}
+    unoptimized
     onClick={() => {
 
   const allImages = messages
@@ -1098,9 +1115,12 @@ const [uploading, setUploading] =
         </button>
       )}
 
-      <img
+      <Image
         src={previewImages[previewIndex]}
-        alt="preview"
+        alt={`Preview ${previewIndex + 1}`}
+        width={1200}
+        height={800}
+        unoptimized
         className="max-h-[75vh] max-w-full object-contain rounded-xl"
       />
 
@@ -1122,9 +1142,13 @@ const [uploading, setUploading] =
 
       {previewImages.map((img, index) => (
 
-        <img
+        <Image
           key={index}
           src={img}
+          alt={`Thumbnail ${index + 1}`}
+          width={64}
+          height={64}
+          unoptimized
           onClick={() => setPreviewIndex(index)}
           className={`w-16 h-16 object-cover rounded cursor-pointer border-2 transition ${
             previewIndex === index

@@ -8,6 +8,16 @@ import { onAuthStateChanged as fbOnAuthStateChanged, signInWithEmailAndPassword 
 import { doc as fbDoc, getDoc as fbGetDoc, setDoc as fbSetDoc, updateDoc as fbUpdateDoc } from "firebase/firestore"
 import type { User } from "@/lib/types"
 
+/**
+ * Normalize a role value to lowercase + trimmed.
+ * Prevents bugs from Firestore storing "Encoder", "ENCODER", "encoder ", etc.
+ * The system expects ONLY: "owner" | "sales" | "encoder" | "admin" | "staff" | "purchasing" | "pending"
+ */
+function normalizeRole(role: string | undefined | null): string {
+  if (!role) return "staff"
+  return role.toLowerCase().trim()
+}
+
 interface AuthContextType {
   user: User | null
   firebaseUser: any | null
@@ -75,6 +85,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const docSnap = await fbGetDoc(docRef)
             if (docSnap.exists()) {
               const userData = docSnap.data() as any
+              // Normalize role to lowercase to prevent role detection bugs
+              userData.role = normalizeRole(userData.role)
               setUser({ uid: authUser.uid, ...userData })
             } else {
               // Create user document if it doesn't exist
@@ -144,6 +156,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log("[Auth] Created user document for:", authUser.email)
       } else {
         const userData = docSnap.data() as any
+        // Normalize role to lowercase to prevent role detection bugs
+        userData.role = normalizeRole(userData.role)
         
         // Auto-patch missing fields (e.g. documents created without status)
         if (!userData.status || !userData.role) {
@@ -157,7 +171,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           userData.role = userData.role || patchData.role
         }
         
-        if (userData.role !== "admin" && userData.role !== "staff" && userData.role !== "sales" && userData.role !== "purchasing" && userData.role !== "owner" && userData.role !== "encoder") {
+        // Role is already normalized above, compare against valid values
+        if (userData.role !== "admin" && userData.role !== "staff" && userData.role !== "sales" && userData.role !== "purchasing" && userData.role !== "owner" && userData.role !== "encoder" && userData.role !== "pending" && userData.role !== "customer") {
           await fbSignOut(getFirebaseAuth())
           throw new Error("Access denied. Valid role required.")
         }

@@ -1,4 +1,4 @@
-import { BarChart3, Package, FileText, ShoppingCart, KeyRound, FileBarChart2, TrendingUp, Activity } from "lucide-react"
+import { BarChart3, Package, FileText, ShoppingCart, KeyRound, FileBarChart2, TrendingUp, Activity, Users } from "lucide-react"
 import { MessageCircle } from "lucide-react"
 /**
  * Centralized role-based access configuration.
@@ -71,6 +71,12 @@ export const MENU_ITEMS: MenuItem[] = [
     roles: ["sales"], 
   },
   {
+    label: "User Management",
+    href: "/owner/users",
+    icon: Users,
+    roles: ["owner"]
+  },
+  {
     label: "Activity Logs",
     href: "/owner/activity-logs",
     icon: Activity,
@@ -97,6 +103,7 @@ export const ROUTE_ACCESS: Record<string, AppRole[]> = {
   // ✅ NEW
   "/messages":   ["sales"],
   "/products":   ["sales"], 
+  "/owner/users": ["owner"],
   "/owner/activity-logs": ["admin", "owner"],
 }
 
@@ -106,6 +113,7 @@ export const ROUTE_ACCESS: Record<string, AppRole[]> = {
  */
 export function canAccessRoute(role: string | undefined, pathname: string): boolean {
   if (!role) return false
+  const normalizedRole = role.toLowerCase().trim()
 
   // Find the most specific matching route prefix
   const matchingRoutes = Object.keys(ROUTE_ACCESS)
@@ -118,7 +126,7 @@ export function canAccessRoute(role: string | undefined, pathname: string): bool
   }
 
   const allowedRoles = ROUTE_ACCESS[matchingRoutes[0]]
-  return allowedRoles.includes(role as AppRole)
+  return allowedRoles.includes(normalizedRole as AppRole)
 }
 
 /**
@@ -126,5 +134,6 @@ export function canAccessRoute(role: string | undefined, pathname: string): bool
  */
 export function getMenuItemsForRole(role: string | undefined): MenuItem[] {
   if (!role) return []
-  return MENU_ITEMS.filter((item) => item.roles.includes(role as AppRole))
+  const normalizedRole = role.toLowerCase().trim()
+  return MENU_ITEMS.filter((item) => item.roles.includes(normalizedRole as AppRole))
 }

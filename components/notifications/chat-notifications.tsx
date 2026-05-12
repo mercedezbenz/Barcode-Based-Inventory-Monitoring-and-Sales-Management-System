@@ -15,15 +15,16 @@ import { formatDistanceToNow } from "date-fns"
 export function ChatNotifications({ userRole }: { userRole?: string | null }) {
   const router = useRouter()
   const { chats, totalUnreadSales, setActiveChatId } = useChatStore()
+  const normalizedRole = userRole?.toLowerCase().trim()
 
   // Only sales role should see customer chat notifications
-  if (userRole !== "sales") {
+  if (normalizedRole !== "sales") {
     return null
   }
 
   // Get unread chats, sorted by latest
   // Only sales sees "unreadCount_sales"
-  const unreadChats = userRole === "sales" 
+  const unreadChats = normalizedRole === "sales" 
     ? chats
         .filter((chat) => chat.unreadCount_sales > 0)
         .sort((a, b) => {
@@ -42,7 +43,7 @@ export function ChatNotifications({ userRole }: { userRole?: string | null }) {
           className="relative inline-flex items-center justify-center rounded-full text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0"
         >
           <MessageSquare className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-          {userRole === "sales" && totalUnreadSales > 0 && (
+          {normalizedRole === "sales" && totalUnreadSales > 0 && (
             <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white shadow-sm ring-2 ring-white dark:ring-gray-900">
               {totalUnreadSales > 99 ? "99+" : totalUnreadSales}
             </span>
@@ -58,7 +59,7 @@ export function ChatNotifications({ userRole }: { userRole?: string | null }) {
             <MessageSquare className="h-4 w-4 text-blue-600 dark:text-blue-400" />
             <h3 className="font-semibold text-sm">Messages</h3>
           </div>
-          {userRole === "sales" && totalUnreadSales > 0 && (
+          {normalizedRole === "sales" && totalUnreadSales > 0 && (
             <span className="bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 text-xs font-bold px-2 py-0.5 rounded-full">
               {totalUnreadSales} New
             </span>
